@@ -15,6 +15,7 @@ from backend.ingest.file_scanner import scan_folder, mark_as_ingested
 from backend.ingest.parsers import parse
 from backend.ingest.chunker import chunk_text
 from backend.ingest.embedder import embed_texts
+from backend.ingest.translator import translate_texts_to_english
 from backend.ingest.db_manager import save_chunks, get_stats
 
 
@@ -56,10 +57,10 @@ def run(folder_path: str) -> None:
         )
         print(f"│        {len(chunks)}개 청크 생성")
 
-        # 4. 임베딩
+        # 4. 영어 번역 후 임베딩 (언어 불일치 방지)
         print("│  [4/5] 임베딩 중...")
-        texts = [c["chunk_text"] for c in chunks]
-        embeddings = embed_texts(texts)
+        translated = translate_texts_to_english([c["chunk_text"] for c in chunks])
+        embeddings = embed_texts(translated)
 
         # 5. DB 저장
         print("│  [5/5] DB 저장 중...")

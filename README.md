@@ -13,6 +13,7 @@
 | Phase 3 | ✅ | Streamlit UI + FastAPI 백엔드 |
 | Phase 4 | ✅ | Docker, 클라우드 배포 |
 | Phase 5 | ✅ | UI 파일 업로드 + POST /upload 인덱싱 API |
+| Phase 6 | ✅ | 영어 Pivot 번역으로 Cross-lingual Retrieval 해결 |
 
 ---
 

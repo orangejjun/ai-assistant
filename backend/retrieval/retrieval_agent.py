@@ -3,6 +3,7 @@ from typing import Any, List, Dict
 
 from openai import OpenAI
 from backend.ingest.db_manager import get_collection
+from backend.ingest.translator import translate_to_english
 
 _EMBED_MODEL = "text-embedding-3-small"
 TOP_K = 5
@@ -29,8 +30,10 @@ class RetrievalAgent:
         return {"chunks": chunks}
 
     def _embed_query(self, query: str) -> List[float]:
+        # 질의를 영어로 번역하여 임베딩 — 문서와 동일한 언어 공간에서 검색
+        english_query = translate_to_english(query)
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        response = client.embeddings.create(model=_EMBED_MODEL, input=[query])
+        response = client.embeddings.create(model=_EMBED_MODEL, input=[english_query])
         return response.data[0].embedding
 
     def _search(self, embedding: List[float], k: int) -> List[Dict]:

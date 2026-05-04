@@ -85,6 +85,7 @@ doc-assistant/
 | Phase 3 | Streamlit UI + 파일 업로드 |
 | Phase 4 | Docker + 클라우드 배포 |
 | Phase 5 | UI 파일 업로드 + 단일 파일 인덱싱 API (POST /upload) |
+| Phase 6 | 영어 Pivot 번역 — 언어 불일치 문제 해결 (Cross-lingual Retrieval) |
 
 ---
 
@@ -95,3 +96,4 @@ doc-assistant/
 - [x] Phase 3 — Streamlit UI, FastAPI 백엔드 ✅ 2026-05-04
 - [x] Phase 4 — Docker, 클라우드 배포 ✅ 2026-05-04
 - [x] Phase 5 — UI 파일 업로드, POST /upload 엔드포인트, MD5 중복 방지 ✅ 2026-05-05
+- [x] Phase 6 — 영어 Pivot 번역, translator.py, 전체 재인덱싱 ✅ 2026-05-05

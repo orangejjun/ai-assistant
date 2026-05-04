@@ -10,7 +10,8 @@ from backend.ingest.file_scanner import scan_folder, mark_as_ingested, compute_m
 from backend.ingest.parsers import parse
 from backend.ingest.chunker import chunk_text
 from backend.ingest.embedder import embed_texts
-from backend.ingest.db_manager import save_chunks, get_stats
+from backend.ingest.translator import translate_texts_to_english
+from backend.ingest.db_manager import save_chunks, get_stats, reset_collection
 from backend.agent.main_agent import MainAgent
 
 router = APIRouter(tags=["assistant"])
@@ -47,10 +48,15 @@ def _is_already_indexed(md5_hash: str) -> bool:
 
 
 def _ingest_one_file(file_path: str, md5_hash: str) -> int:
-    """단일 파일을 파싱 → 청킹 → 임베딩 → DB 저장까지 처리하고 저장된 청크 수를 반환한다."""
+    """단일 파일을 파싱 → 청킹 → 영어 번역 → 임베딩 → DB 저장까지 처리하고 저장된 청크 수를 반환한다.
+
+    임베딩은 영어 번역본으로 생성하고, ChromaDB에는 원본 텍스트를 저장한다.
+    이를 통해 질의 언어와 문서 언어가 달라도 유사도 검색이 정확하게 동작한다.
+    """
     raw_text = parse(file_path)
     chunks = chunk_text(raw_text, file_path, md5_hash)
-    embeddings = embed_texts([c["chunk_text"] for c in chunks])
+    translated_texts = translate_texts_to_english([c["chunk_text"] for c in chunks])
+    embeddings = embed_texts(translated_texts)
     saved = save_chunks(chunks, embeddings)
     mark_as_ingested(file_path, md5_hash)
     return saved

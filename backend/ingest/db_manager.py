@@ -59,6 +59,19 @@ def save_chunks(chunks: List[Dict], embeddings: List[List[float]]) -> int:
     return len(chunks)
 
 
+def reset_collection() -> None:
+    """기존 컬렉션을 삭제하고 새로 생성한다. 재인덱싱 시 사용한다."""
+    client = _get_client()
+    try:
+        client.delete_collection(name=COLLECTION_NAME)
+    except Exception:
+        pass
+    client.get_or_create_collection(
+        name=COLLECTION_NAME,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+
 def get_stats() -> Dict:
     collection = get_collection()
     return {"collection": COLLECTION_NAME, "total_chunks": collection.count()}
