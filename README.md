@@ -12,6 +12,7 @@
 | Phase 2 | ✅ | 벡터 검색, GPT 답변 생성 |
 | Phase 3 | ✅ | Streamlit UI + FastAPI 백엔드 |
 | Phase 4 | ✅ | Docker, 클라우드 배포 |
+| Phase 5 | ✅ | UI 파일 업로드 + POST /upload 인덱싱 API |
 
 ---
 
@@ -88,7 +89,26 @@ docker-compose logs -f frontend
 
 ---
 
-### C. CLI (문서 인덱싱 / 질의)
+### C. 파일 업로드 (UI)
+
+서버 실행 후 `http://localhost:8501` 에 접속하여 왼쪽 사이드바 **파일 업로드** 섹션을 사용합니다.
+
+1. **파일 선택** — PDF, DOCX, TXT, XLSX 중 하나를 선택합니다.
+2. **업로드 & 인덱싱** 버튼 클릭 → 파일이 `data/raw/` 에 저장되고 즉시 임베딩 후 ChromaDB에 추가됩니다.
+3. 업로드 완료 후 채팅에서 해당 파일 내용을 바로 질문할 수 있습니다.
+
+> **중복 처리**: 이미 인덱싱된 파일(내용 기준 MD5 비교)은 재처리 없이 안내 메시지를 반환합니다.
+
+#### API 직접 사용 (curl)
+
+```bash
+curl -X POST http://localhost:8000/upload \
+  -F "file=@/path/to/document.pdf"
+```
+
+---
+
+### D. CLI (문서 인덱싱 / 질의)
 
 ```bash
 # 문서 인덱싱

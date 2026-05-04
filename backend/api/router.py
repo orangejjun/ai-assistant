@@ -1,9 +1,12 @@
+import json
+import shutil
+from pathlib import Path
 from typing import Any, List
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
-from backend.ingest.file_scanner import scan_folder, mark_as_ingested
+from backend.ingest.file_scanner import scan_folder, mark_as_ingested, compute_md5
 from backend.ingest.parsers import parse
 from backend.ingest.chunker import chunk_text
 from backend.ingest.embedder import embed_texts
@@ -11,6 +14,10 @@ from backend.ingest.db_manager import save_chunks, get_stats
 from backend.agent.main_agent import MainAgent
 
 router = APIRouter(tags=["assistant"])
+
+_SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".txt", ".xlsx"}
+_HASH_STORE_PATH = Path("data/vectordb/hash_store.json")
+_UPLOAD_DIR = Path("data/raw")
 
 
 # ── 스키마 ──────────────────────────────────────────────────────────────────
@@ -27,6 +34,26 @@ class IngestRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
+
+
+# ── 헬퍼 ──────────────────────────────────────────────────────────────────────
+
+def _is_already_indexed(md5_hash: str) -> bool:
+    """hash_store에 동일한 MD5가 있으면 True (내용 기반 중복 판단)."""
+    if not _HASH_STORE_PATH.exists():
+        return False
+    data: dict = json.loads(_HASH_STORE_PATH.read_text(encoding="utf-8"))
+    return md5_hash in data.values()
+
+
+def _ingest_one_file(file_path: str, md5_hash: str) -> int:
+    """단일 파일을 파싱 → 청킹 → 임베딩 → DB 저장까지 처리하고 저장된 청크 수를 반환한다."""
+    raw_text = parse(file_path)
+    chunks = chunk_text(raw_text, file_path, md5_hash)
+    embeddings = embed_texts([c["chunk_text"] for c in chunks])
+    saved = save_chunks(chunks, embeddings)
+    mark_as_ingested(file_path, md5_hash)
+    return saved
 
 
 # ── 엔드포인트 ────────────────────────────────────────────────────────────────
@@ -47,11 +74,7 @@ def ingest(request: IngestRequest) -> ApiResponse:
         total_chunks = 0
 
         for file_info in files:
-            raw_text = parse(file_info["file_path"])
-            chunks = chunk_text(raw_text, file_info["file_path"], file_info["md5_hash"])
-            embeddings = embed_texts([c["chunk_text"] for c in chunks])
-            saved = save_chunks(chunks, embeddings)
-            mark_as_ingested(file_info["file_path"], file_info["md5_hash"])
+            saved = _ingest_one_file(file_info["file_path"], file_info["md5_hash"])
             total_files += 1
             total_chunks += saved
 
@@ -68,6 +91,59 @@ def ingest(request: IngestRequest) -> ApiResponse:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/upload", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def upload_file(file: UploadFile = File(...)) -> ApiResponse:
+    """
+    단일 파일을 업로드하고 즉시 인덱싱한다.
+
+    중복 처리:
+    - 동일 내용(MD5 일치): 인덱싱 건너뜀, duplicate=True 반환
+    - 동일 파일명이지만 내용이 다른 경우: 새 MD5로 새 청크가 추가되며
+      이전 청크는 ChromaDB에 잔존할 수 있음 (ChromaDB upsert 특성)
+    """
+    try:
+        suffix = Path(file.filename).suffix.lower()
+        if suffix not in _SUPPORTED_EXTENSIONS:
+            return ApiResponse(
+                success=False,
+                data=None,
+                error=f"지원하지 않는 파일 형식입니다: {suffix} (지원: pdf, docx, txt, xlsx)",
+            )
+
+        _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        save_path = _UPLOAD_DIR / file.filename
+
+        with save_path.open("wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        md5_hash = compute_md5(str(save_path))
+
+        if _is_already_indexed(md5_hash):
+            return ApiResponse(
+                success=True,
+                data={
+                    "filename": file.filename,
+                    "chunks": 0,
+                    "duplicate": True,
+                    "db_total_chunks": get_stats()["total_chunks"],
+                },
+            )
+
+        saved = _ingest_one_file(str(save_path), md5_hash)
+        stats = get_stats()
+        return ApiResponse(
+            success=True,
+            data={
+                "filename": file.filename,
+                "chunks": saved,
+                "duplicate": False,
+                "db_total_chunks": stats["total_chunks"],
+            },
+        )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

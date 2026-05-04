@@ -84,6 +84,7 @@ doc-assistant/
 | Phase 2 | 벡터 검색 + Claude API 답변 생성 |
 | Phase 3 | Streamlit UI + 파일 업로드 |
 | Phase 4 | Docker + 클라우드 배포 |
+| Phase 5 | UI 파일 업로드 + 단일 파일 인덱싱 API (POST /upload) |
 
 ---
 
@@ -93,3 +94,4 @@ doc-assistant/
 - [x] Phase 2 — 벡터 검색, Claude API 답변 생성 ✅ 2026-05-04
 - [x] Phase 3 — Streamlit UI, FastAPI 백엔드 ✅ 2026-05-04
 - [x] Phase 4 — Docker, 클라우드 배포 ✅ 2026-05-04
+- [x] Phase 5 — UI 파일 업로드, POST /upload 엔드포인트, MD5 중복 방지 ✅ 2026-05-05

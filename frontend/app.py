@@ -45,6 +45,16 @@ def _run_query(query: str) -> dict:
     return res.json()
 
 
+def _upload_file(file) -> dict:
+    res = requests.post(
+        f"{API_BASE}/upload",
+        files={"file": (file.name, file.getvalue(), file.type or "application/octet-stream")},
+        timeout=300,
+    )
+    res.raise_for_status()
+    return res.json()
+
+
 # ── 사이드바 ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -74,6 +84,41 @@ with st.sidebar:
                             f"- 처리 파일: **{data['processed_files']}개**\n"
                             f"- 신규 청크: **{data['total_chunks']}개**\n"
                             f"- DB 누적 청크: **{data['db_total_chunks']}개**"
+                        )
+                    st.rerun()
+                else:
+                    st.error(f"오류: {result.get('error')}")
+            except requests.exceptions.ConnectionError:
+                st.error("백엔드에 연결할 수 없습니다.")
+            except requests.exceptions.HTTPError as e:
+                detail = e.response.json().get("detail", str(e)) if e.response else str(e)
+                st.error(f"오류: {detail}")
+            except Exception as e:
+                st.error(f"알 수 없는 오류: {e}")
+
+    st.divider()
+    st.subheader("📤 파일 업로드")
+
+    uploaded = st.file_uploader(
+        "파일 선택",
+        type=["pdf", "docx", "txt", "xlsx"],
+        help="업로드하면 즉시 임베딩 후 벡터DB에 저장됩니다.",
+    )
+
+    if uploaded and st.button("업로드 & 인덱싱", type="primary", use_container_width=True):
+        with st.spinner(f"{uploaded.name} 인덱싱 중..."):
+            try:
+                result = _upload_file(uploaded)
+                if result.get("success"):
+                    d = result["data"]
+                    if d.get("duplicate"):
+                        st.warning("⚠️ 이미 인덱싱된 파일입니다.")
+                    else:
+                        st.success(
+                            f"✅ 완료\n\n"
+                            f"- 파일명: **{d['filename']}**\n"
+                            f"- 신규 청크: **{d['chunks']}개**\n"
+                            f"- DB 누적 청크: **{d['db_total_chunks']}개**"
                         )
                     st.rerun()
                 else:
