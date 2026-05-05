@@ -21,6 +21,15 @@ def _load_hash_store() -> dict:
     return {}
 
 
+def remove_from_hash_store(file_path: str) -> None:
+    """hash_store.json에서 해당 파일 경로 항목을 제거한다."""
+    store = _load_hash_store()
+    store.pop(file_path, None)
+    _HASH_STORE_PATH.write_text(
+        json.dumps(store, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
 def mark_as_ingested(file_path: str, md5_hash: str) -> None:
     store = _load_hash_store()
     store[file_path] = md5_hash

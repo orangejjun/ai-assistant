@@ -59,6 +59,16 @@ def save_chunks(chunks: List[Dict], embeddings: List[List[float]]) -> int:
     return len(chunks)
 
 
+def delete_by_source_file(source_file: str) -> int:
+    """source_file 메타데이터 기준으로 해당 파일의 모든 청크를 삭제하고 삭제된 수를 반환한다."""
+    collection = get_collection()
+    result = collection.get(where={"source_file": source_file})
+    ids = result["ids"]
+    if ids:
+        collection.delete(ids=ids)
+    return len(ids)
+
+
 def reset_collection() -> None:
     """기존 컬렉션을 삭제하고 새로 생성한다. 재인덱싱 시 사용한다."""
     client = _get_client()

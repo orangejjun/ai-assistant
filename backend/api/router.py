@@ -1,3 +1,4 @@
+import asyncio
 import json
 import shutil
 from pathlib import Path
@@ -6,12 +7,12 @@ from typing import Any, List
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
-from backend.ingest.file_scanner import scan_folder, mark_as_ingested, compute_md5
+from backend.ingest.file_scanner import scan_folder, mark_as_ingested, compute_md5, remove_from_hash_store
 from backend.ingest.parsers import parse
 from backend.ingest.chunker import chunk_text
 from backend.ingest.embedder import embed_texts
 from backend.ingest.translator import translate_texts_to_english
-from backend.ingest.db_manager import save_chunks, get_stats, reset_collection
+from backend.ingest.db_manager import save_chunks, get_stats, reset_collection, delete_by_source_file
 from backend.agent.main_agent import MainAgent
 
 router = APIRouter(tags=["assistant"])
@@ -35,6 +36,10 @@ class IngestRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
+
+
+class DeleteRequest(BaseModel):
+    source_file: str
 
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────────
@@ -139,7 +144,7 @@ async def upload_file(file: UploadFile = File(...)) -> ApiResponse:
                 },
             )
 
-        saved = _ingest_one_file(str(save_path), md5_hash)
+        saved = await asyncio.to_thread(_ingest_one_file, str(save_path), md5_hash)
         stats = get_stats()
         return ApiResponse(
             success=True,
@@ -175,6 +180,57 @@ def query(request: QueryRequest) -> ApiResponse:
         raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/files", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+def list_files() -> ApiResponse:
+    """인덱싱된 파일 목록을 반환한다."""
+    try:
+        if not _HASH_STORE_PATH.exists():
+            return ApiResponse(success=True, data={"files": []})
+        store: dict = json.loads(_HASH_STORE_PATH.read_text(encoding="utf-8"))
+        files = [
+            {"source_file": k, "filename": Path(k).name}
+            for k in store.keys()
+        ]
+        return ApiResponse(success=True, data={"files": files})
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.delete("/files", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def delete_file(request: DeleteRequest) -> ApiResponse:
+    """
+    source_file 기준으로 ChromaDB 청크를 삭제하고, hash_store에서 제거한 뒤
+    원본 파일을 data/trash/ 폴더로 이동한다.
+    """
+    try:
+        source_file = request.source_file
+        file_path = Path(source_file)
+
+        deleted_chunks = await asyncio.to_thread(delete_by_source_file, source_file)
+        remove_from_hash_store(source_file)
+
+        moved_to: str | None = None
+        if file_path.exists():
+            trash_dir = Path("data/trash")
+            trash_dir.mkdir(parents=True, exist_ok=True)
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            dest = trash_dir / f"{timestamp}_{file_path.name}"
+            shutil.move(str(file_path), str(dest))
+            moved_to = str(dest)
+
+        return ApiResponse(
+            success=True,
+            data={
+                "filename": file_path.name,
+                "deleted_chunks": deleted_chunks,
+                "moved_to": moved_to,
+            },
+        )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

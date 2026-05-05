@@ -20,7 +20,7 @@ def _get_status() -> dict | None:
         res = requests.get(f"{API_BASE}/status", timeout=3)
         if res.ok:
             return res.json().get("data")
-    except requests.exceptions.ConnectionError:
+    except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
         pass
     return None
 
@@ -40,6 +40,26 @@ def _run_query(query: str) -> dict:
         f"{API_BASE}/query",
         json={"query": query},
         timeout=60,
+    )
+    res.raise_for_status()
+    return res.json()
+
+
+def _list_files() -> list:
+    try:
+        res = requests.get(f"{API_BASE}/files", timeout=5)
+        if res.ok:
+            return res.json().get("data", {}).get("files", [])
+    except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+        pass
+    return []
+
+
+def _delete_file(source_file: str) -> dict:
+    res = requests.delete(
+        f"{API_BASE}/files",
+        json={"source_file": source_file},
+        timeout=30,
     )
     res.raise_for_status()
     return res.json()
@@ -130,6 +150,37 @@ with st.sidebar:
                 st.error(f"오류: {detail}")
             except Exception as e:
                 st.error(f"알 수 없는 오류: {e}")
+
+    st.divider()
+    st.subheader("🗂️ 인덱싱된 파일 관리")
+
+    indexed_files = _list_files()
+    if indexed_files:
+        file_options = {f["filename"]: f["source_file"] for f in indexed_files}
+        selected_name = st.selectbox("삭제할 파일 선택", list(file_options.keys()))
+
+        if st.button("🗑️ 선택 파일 삭제", type="primary", use_container_width=True):
+            with st.spinner(f"{selected_name} 삭제 중..."):
+                try:
+                    result = _delete_file(file_options[selected_name])
+                    if result.get("success"):
+                        d = result["data"]
+                        st.success(
+                            f"✅ 삭제 완료\n\n"
+                            f"- 파일명: **{d['filename']}**\n"
+                            f"- 삭제된 청크: **{d['deleted_chunks']}개**\n"
+                            f"- 이동 경로: `{d['moved_to'] or '파일 없음'}`"
+                        )
+                    else:
+                        st.error(f"오류: {result.get('error')}")
+                    st.rerun()
+                except requests.exceptions.HTTPError as e:
+                    detail = e.response.json().get("detail", str(e)) if e.response else str(e)
+                    st.error(f"오류: {detail}")
+                except Exception as e:
+                    st.error(f"알 수 없는 오류: {e}")
+    else:
+        st.caption("인덱싱된 파일이 없습니다.")
 
     st.divider()
 
