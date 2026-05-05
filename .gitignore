@@ -4,6 +4,7 @@
 # 데이터 (용량이 크고 외부 공유 불필요)
 data/vectordb/
 data/raw/
+data/trash/
 
 # Python
 __pycache__/

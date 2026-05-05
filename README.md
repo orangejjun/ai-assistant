@@ -14,6 +14,8 @@
 | Phase 4 | ✅ | Docker, 클라우드 배포 |
 | Phase 5 | ✅ | UI 파일 업로드 + POST /upload 인덱싱 API |
 | Phase 6 | ✅ | 영어 Pivot 번역으로 Cross-lingual Retrieval 해결 |
+| Phase 7 | ✅ | 파일 삭제 기능 (휴지통 방식, GET /files, DELETE /files) |
+| Phase 8 | ✅ | start.sh 자동 실행 스크립트 |
 
 ---
 
