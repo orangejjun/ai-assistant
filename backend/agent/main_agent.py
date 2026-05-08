@@ -2,6 +2,7 @@ from typing import Any
 
 from backend.retrieval.retrieval_agent import RetrievalAgent
 from backend.agent.answer_agent import AnswerAgent
+from backend.agent.web_search import NaverSearchAgent
 
 
 class MainAgent:
@@ -28,7 +29,7 @@ class MainAgent:
             }
         return agent.run(payload)
 
-    def query(self, user_query: str) -> dict:
+    def query(self, user_query: str, use_web_search: bool = False) -> dict:
         """
         사용자 질의를 받아 Retrieval → Answer 순서로 처리 후 결과를 반환한다.
 
@@ -46,8 +47,15 @@ class MainAgent:
 
         chunks = retrieval_result["data"]["chunks"]
 
-        # 2. 답변 생성
-        answer_result = self.route("answer", {"query": user_query, "chunks": chunks})
+        # 2. 웹 검색 (선택)
+        web_results = []
+        if use_web_search:
+            web_result = NaverSearchAgent().run({"query": user_query, "display": 5})
+            if web_result["success"]:
+                web_results = web_result["data"]["results"]
+
+        # 3. 답변 생성
+        answer_result = self.route("answer", {"query": user_query, "chunks": chunks, "web_results": web_results})
         if not answer_result["success"]:
             return {
                 "success": False,
@@ -60,6 +68,7 @@ class MainAgent:
             "data": {
                 "answer": answer_result["data"]["answer"],
                 "sources": answer_result["data"]["sources"],
+                "web_sources": answer_result["data"].get("web_sources", []),
                 "query": user_query,
             },
             "error": None,

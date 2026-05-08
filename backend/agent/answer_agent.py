@@ -13,6 +13,13 @@ _SYSTEM_PROMPT = (
     "추측이나 외부 지식을 사용하지 마십시오."
 )
 
+_SYSTEM_PROMPT_WITH_WEB = (
+    "당신은 사내 문서 기반 AI 비서입니다.\n"
+    "제공된 사내 문서를 우선적으로 활용하고, 웹 검색 결과로 내용을 보완하여 답변하십시오.\n"
+    "사내 문서 내용과 웹 정보를 명확히 구분하여 출처를 밝혀주십시오.\n"
+    "추측은 하지 말고 제공된 정보에만 근거하여 답변하십시오."
+)
+
 _NOT_FOUND = "문서에서 찾을 수 없습니다."
 
 
@@ -29,34 +36,42 @@ class AnswerAgent:
     def _execute(self, payload: dict) -> dict:
         query: str = payload.get("query", "")
         chunks: List[Dict] = payload.get("chunks", [])
+        web_results: List[Dict] = payload.get("web_results", [])
 
         if not query:
             raise ValueError("payload에 'query' 키가 필요합니다.")
 
-        if not chunks:
+        if not chunks and not web_results:
             return {"answer": _NOT_FOUND, "sources": []}
 
-        context = self._build_context(chunks)
-        answer = self._call_gpt(query, context)
-        # dict.fromkeys: 순서 유지하면서 중복 제거
-        sources = list(dict.fromkeys(c["source_file"] for c in chunks))
+        context = self._build_context(chunks, web_results)
+        system_prompt = _SYSTEM_PROMPT_WITH_WEB if web_results else _SYSTEM_PROMPT
+        answer = self._call_gpt(query, context, system_prompt)
+        doc_sources = list(dict.fromkeys(c["source_file"] for c in chunks))
+        web_sources = [r["link"] for r in web_results if r.get("link")]
 
-        return {"answer": answer, "sources": sources}
+        return {"answer": answer, "sources": doc_sources, "web_sources": web_sources}
 
-    def _build_context(self, chunks: List[Dict]) -> str:
-        parts = [
-            f"[문서 {i}] 출처: {chunk.get('source_file', '알 수 없음')}\n{chunk['chunk_text']}"
-            for i, chunk in enumerate(chunks, 1)
-        ]
+    def _build_context(self, chunks: List[Dict], web_results: List[Dict]) -> str:
+        parts = []
+        for i, chunk in enumerate(chunks, 1):
+            parts.append(f"[사내 문서 {i}] 출처: {chunk.get('source_file', '알 수 없음')}\n{chunk['chunk_text']}")
+
+        for i, item in enumerate(web_results, 1):
+            parts.append(
+                f"[웹 검색 {i}] 제목: {item.get('title', '')}\n"
+                f"출처: {item.get('link', '')}\n"
+                f"{item.get('description', '')}"
+            )
         return "\n\n---\n\n".join(parts)
 
-    def _call_gpt(self, query: str, context: str) -> str:
+    def _call_gpt(self, query: str, context: str, system_prompt: str) -> str:
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = client.chat.completions.create(
             model=GPT_MODEL,
-            max_tokens=1024,
+            max_tokens=2048,
             messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"[참고 문서]\n{context}\n\n[질문]\n{query}"},
             ],
         )

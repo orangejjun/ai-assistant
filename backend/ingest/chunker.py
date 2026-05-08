@@ -2,8 +2,8 @@ from typing import List, Dict
 
 # 1 토큰 ≈ 4자 (영문 기준 근사치). 한글 위주 문서는 이 값을 2~3으로 줄이면 토큰 수 추정이 더 정확해진다.
 _CHARS_PER_TOKEN = 4
-CHUNK_SIZE: int = 600 * _CHARS_PER_TOKEN   # ≈ 600 tokens → 2400자
-OVERLAP_SIZE: int = 100 * _CHARS_PER_TOKEN  # ≈ 100 tokens → 400자
+CHUNK_SIZE: int = 800 * _CHARS_PER_TOKEN   # ≈ 800 tokens → 3200자
+OVERLAP_SIZE: int = 150 * _CHARS_PER_TOKEN  # ≈ 150 tokens → 600자
 
 
 def chunk_text(text: str, source_file: str, md5_hash: str) -> List[Dict]:

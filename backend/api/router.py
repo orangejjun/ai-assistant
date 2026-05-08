@@ -2,7 +2,7 @@ import asyncio
 import json
 import shutil
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
@@ -14,6 +14,8 @@ from backend.ingest.embedder import embed_texts
 from backend.ingest.translator import translate_texts_to_english
 from backend.ingest.db_manager import save_chunks, get_stats, reset_collection, delete_by_source_file
 from backend.agent.main_agent import MainAgent
+from backend.agent.poster_agent import PosterAgent
+from backend.agent.plan_agent import PlanAgent
 
 router = APIRouter(tags=["assistant"])
 
@@ -36,10 +38,20 @@ class IngestRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
+    use_web_search: bool = False
 
 
 class DeleteRequest(BaseModel):
     source_file: str
+
+
+class PosterRequest(BaseModel):
+    topic: str
+
+
+class PlanRequest(BaseModel):
+    goal: str
+    chat_history: List[Dict] = []
 
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────────
@@ -167,7 +179,7 @@ def query(request: QueryRequest) -> ApiResponse:
             raise ValueError("질문 내용이 비어 있습니다.")
 
         agent = MainAgent()
-        result = agent.query(request.query)
+        result = agent.query(request.query, use_web_search=request.use_web_search)
 
         if not result["success"]:
             raise HTTPException(
@@ -231,6 +243,47 @@ async def delete_file(request: DeleteRequest) -> ApiResponse:
                 "moved_to": moved_to,
             },
         )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/poster", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def create_poster(request: PosterRequest) -> ApiResponse:
+    """주제를 입력받아 관련 문서를 검색하고 gpt-image-2로 포스터 이미지를 생성한다."""
+    try:
+        if not request.topic.strip():
+            raise ValueError("주제가 비어 있습니다.")
+        agent = PosterAgent()
+        result = await asyncio.to_thread(agent.run, {"topic": request.topic})
+        if not result["success"]:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result["error"])
+        return ApiResponse(success=True, data=result["data"])
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/plan", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def create_plan(request: PlanRequest) -> ApiResponse:
+    """프로젝트 목표와 채팅 히스토리를 받아 문서 기반 프로젝트 플랜 마크다운을 생성한다."""
+    try:
+        if not request.goal.strip():
+            raise ValueError("프로젝트 목표가 비어 있습니다.")
+        agent = PlanAgent()
+        result = await asyncio.to_thread(
+            agent.run,
+            {"goal": request.goal, "chat_history": request.chat_history},
+        )
+        if not result["success"]:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result["error"])
+        return ApiResponse(success=True, data=result["data"])
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
