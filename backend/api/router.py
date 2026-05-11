@@ -15,6 +15,7 @@ from backend.ingest.translator import translate_texts_to_english
 from backend.ingest.db_manager import save_chunks, get_stats, reset_collection, delete_by_source_file
 from backend.agent.main_agent import MainAgent
 from backend.agent.poster_agent import PosterAgent
+from backend.agent.ppt_agent import PptAgent
 from backend.agent.plan_agent import PlanAgent
 from backend.agent.email_draft_agent import EmailDraftAgent
 from backend.agent.email_recipient_agent import EmailRecipientAgent
@@ -50,6 +51,11 @@ class DeleteRequest(BaseModel):
 
 class PosterRequest(BaseModel):
     topic: str
+
+
+class PptRequest(BaseModel):
+    topic: str
+    num_slides: int = 5
 
 
 class PlanRequest(BaseModel):
@@ -267,6 +273,27 @@ async def create_poster(request: PosterRequest) -> ApiResponse:
             raise ValueError("주제가 비어 있습니다.")
         agent = PosterAgent()
         result = await asyncio.to_thread(agent.run, {"topic": request.topic})
+        if not result["success"]:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result["error"])
+        return ApiResponse(success=True, data=result["data"])
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/ppt", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def create_ppt(request: PptRequest) -> ApiResponse:
+    """주제를 입력받아 관련 문서를 검색하고 python-pptx로 프레젠테이션을 생성한다."""
+    try:
+        if not request.topic.strip():
+            raise ValueError("주제가 비어 있습니다.")
+        agent = PptAgent()
+        result = await asyncio.to_thread(
+            agent.run, {"topic": request.topic, "num_slides": request.num_slides}
+        )
         if not result["success"]:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result["error"])
         return ApiResponse(success=True, data=result["data"])

@@ -14,6 +14,7 @@
 | Phase 10 | 문서 + 채팅 히스토리 기반 인터랙티브 TODO 플랜 생성 (POST /plan, 플랜 탭) |
 | Phase 11 | Naver 웹 검색 연동 — 채팅 토글로 선택 활성화 |
 | Phase 12 | 번역 병렬 배치 처리 + 토큰/청크 크기 최적화 |
+| Phase 15 | python-pptx PPT 생성 (POST /ppt, PPT 탭) |
 
 ## Progress
 
@@ -29,3 +30,4 @@
 - [x] Phase 10 — 인터랙티브 TODO 플랜 생성, POST /plan, 플랜 탭 ✅ 2026-05-08
 - [x] Phase 11 — Naver 웹 검색 연동, NaverSearchAgent, 채팅 토글 ✅ 2026-05-08
 - [x] Phase 12 — 번역 병렬 배치 처리, 토큰/청크 크기 최적화 ✅ 2026-05-08
+- [x] Phase 15 — python-pptx PPT 생성, POST /ppt, PPT 탭 ✅ 2026-05-12

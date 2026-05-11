@@ -11,11 +11,11 @@ _IMAGE_MODEL = "dall-e-3"
 _IMAGE_SIZE = "1024x1792"
 
 _PROMPT_SYSTEM = (
-    "You are a professional poster designer. "
-    "Given a topic and reference document excerpts, write a detailed image generation prompt "
-    "for a single-page summary poster. "
-    "The prompt must describe: layout, title, key sections, bullet points, color scheme, and style. "
-    "Make the text content clear and readable. "
+    "You are a professional graphic designer creating flat 2D digital infographics. "
+    "Given a topic and reference document excerpts, write a DALL-E prompt for a digital infographic layout (NOT a photo of a poster). "
+    "The prompt must start with: "
+    "'Flat 2D digital infographic design, top-down view, no mockup, no shadows, no physical paper, pure digital artwork,' "
+    "Then describe: visual style, color scheme, title placement, key sections, icons or illustrations, and typography. "
     "Write the prompt in English regardless of the input language."
 )
 
@@ -70,7 +70,7 @@ class PosterAgent:
                     "content": (
                         f"Topic: {topic}\n\n"
                         f"Reference documents:\n{context}\n\n"
-                        "Write an image generation prompt for a professional summary poster."
+                        "Write an image generation prompt for a flat digital graphic (infographic)."
                     ),
                 },
             ],
@@ -78,10 +78,22 @@ class PosterAgent:
         return response.choices[0].message.content.strip()
 
     def _generate_image(self, prompt: str) -> str:
+        enforced = (
+            "Flat digital graphic design artwork, infographic style. "
+            "Pure background filling 100% of the canvas. "
+            "NO shadows, NO photo-realistic rendering, NO 3D perspective, "
+            "NO paper texture, NO binder clips, NO wall, NO room, NO mockup, "
+            "NO frame, NO border, NO margins, NO surrounding environment. "
+            "This is a 2D vector-style flat digital graphic viewed perfectly straight-on. "
+            "The content must touch all four edges of the image. "
+            + prompt
+            + " Completely flat digital graphic design. No depth, no shadow, no physical object. "
+            "Pure 2D infographic filling the entire canvas."
+        )
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = client.images.generate(
             model=_IMAGE_MODEL,
-            prompt=prompt,
+            prompt=enforced,
             size=_IMAGE_SIZE,
             quality="hd",
             n=1,

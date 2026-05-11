@@ -14,6 +14,7 @@
 | 벡터 DB | ChromaDB (로컬) |
 | LLM | OpenAI `gpt-4o-mini` |
 | 이미지 생성 | OpenAI `dall-e-3` |
+| PPT 생성 | `python-pptx` |
 | 웹 검색 | Naver Search API |
 | 프론트엔드 | Streamlit |
 
@@ -48,6 +49,7 @@
 | 답변 max_tokens | 2048 |
 | 플랜 max_tokens | 4096 |
 | 포스터 프롬프트 max_tokens | 1536 |
+| PPT 슬라이드 max_tokens | 4096 |
 | 번역 배치 max_tokens | 4096 |
 
 - 임베딩은 **영어 번역본**으로 생성, ChromaDB에는 **원본** 저장 (Cross-lingual Retrieval)
