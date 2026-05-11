@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
 from backend.ingest.file_scanner import scan_folder, mark_as_ingested, compute_md5, remove_from_hash_store
@@ -16,6 +16,9 @@ from backend.ingest.db_manager import save_chunks, get_stats, reset_collection, 
 from backend.agent.main_agent import MainAgent
 from backend.agent.poster_agent import PosterAgent
 from backend.agent.plan_agent import PlanAgent
+from backend.agent.email_draft_agent import EmailDraftAgent
+from backend.agent.email_recipient_agent import EmailRecipientAgent
+from backend.agent.email_sender_agent import EmailSenderAgent
 
 router = APIRouter(tags=["assistant"])
 
@@ -52,6 +55,15 @@ class PosterRequest(BaseModel):
 class PlanRequest(BaseModel):
     goal: str
     chat_history: List[Dict] = []
+
+
+class EmailDraftRequest(BaseModel):
+    messages: List[Dict]
+
+
+class EmailRecipientsRequest(BaseModel):
+    subject: str
+    body: str
 
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────────
@@ -294,5 +306,91 @@ def get_status() -> ApiResponse:
     try:
         stats = get_stats()
         return ApiResponse(success=True, data=stats)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/email/draft", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def email_draft(request: EmailDraftRequest) -> ApiResponse:
+    """채팅 이력을 받아 RAG 기반 이메일 초안(제목+본문)을 생성한다."""
+    try:
+        if not request.messages:
+            raise ValueError("messages가 비어 있습니다.")
+        agent = EmailDraftAgent()
+        result = await asyncio.to_thread(agent.run, {"messages": request.messages})
+        if not result["success"]:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result["error"])
+        return ApiResponse(success=True, data=result["data"])
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/email/recipients", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def email_recipients(request: EmailRecipientsRequest) -> ApiResponse:
+    """이메일 제목/본문을 분석하여 사내 contacts 기반 CC 수신자를 추천한다."""
+    try:
+        agent = EmailRecipientAgent()
+        result = await asyncio.to_thread(
+            agent.run, {"subject": request.subject, "body": request.body}
+        )
+        if not result["success"]:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result["error"])
+        return ApiResponse(success=True, data=result["data"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/email/send", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def email_send(
+    to: str = Form(...),
+    cc: str = Form(""),
+    subject: str = Form(...),
+    body: str = Form(...),
+    attachments: List[UploadFile] = File(default=[]),
+) -> ApiResponse:
+    """이메일을 Gmail SMTP로 전송한다. 파일 첨부 포함."""
+    try:
+        if not to.strip():
+            raise ValueError("수신자(to)가 비어 있습니다.")
+        if not subject.strip():
+            raise ValueError("제목(subject)이 비어 있습니다.")
+
+        cc_list = [addr.strip() for addr in cc.split(",") if addr.strip()]
+        attachment_list = []
+        for att in attachments:
+            if att.filename:
+                content = await att.read()
+                attachment_list.append(
+                    {
+                        "filename": att.filename,
+                        "content": content,
+                        "mimetype": att.content_type or "application/octet-stream",
+                    }
+                )
+
+        agent = EmailSenderAgent()
+        result = await asyncio.to_thread(
+            agent.run,
+            {
+                "to": to,
+                "cc": cc_list,
+                "subject": subject,
+                "body": body,
+                "attachments": attachment_list,
+            },
+        )
+        if not result["success"]:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result["error"])
+        return ApiResponse(success=True, data=result["data"])
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

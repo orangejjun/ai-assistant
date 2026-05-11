@@ -13,6 +13,12 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "plan_data" not in st.session_state:
     st.session_state.plan_data = None
+if "email_messages" not in st.session_state:
+    st.session_state.email_messages = []
+if "email_draft" not in st.session_state:
+    st.session_state.email_draft = None
+if "email_suggestions" not in st.session_state:
+    st.session_state.email_suggestions = {"to_suggestion": None, "cc_suggestions": []}
 
 
 # ── 헬퍼 ─────────────────────────────────────────────────────────────────────
@@ -92,6 +98,47 @@ def _upload_file(file) -> dict:
         f"{API_BASE}/upload",
         files={"file": (file.name, file.getvalue(), file.type or "application/octet-stream")},
         timeout=300,
+    )
+    res.raise_for_status()
+    return res.json()
+
+
+def _draft_email(messages: list[dict]) -> dict:
+    res = requests.post(
+        f"{API_BASE}/email/draft",
+        json={"messages": messages},
+        timeout=60,
+    )
+    res.raise_for_status()
+    return res.json()
+
+
+def _recommend_recipients(subject: str, body: str) -> dict:
+    res = requests.post(
+        f"{API_BASE}/email/recipients",
+        json={"subject": subject, "body": body},
+        timeout=45,
+    )
+    res.raise_for_status()
+    return res.json()
+
+
+def _send_email(
+    to: str,
+    cc_list: list[str],
+    subject: str,
+    body: str,
+    attachments: list,
+) -> dict:
+    files = [
+        ("attachments", (f.name, f.getvalue(), f.type or "application/octet-stream"))
+        for f in attachments
+    ]
+    res = requests.post(
+        f"{API_BASE}/email/send",
+        data={"to": to, "cc": ",".join(cc_list), "subject": subject, "body": body},
+        files=files if files else [("attachments", ("", b"", "application/octet-stream"))],
+        timeout=60,
     )
     res.raise_for_status()
     return res.json()
@@ -215,7 +262,7 @@ with st.sidebar:
 
 st.title("📚 AI 문서 비서")
 
-tab_chat, tab_poster, tab_plan = st.tabs(["💬 채팅", "🎨 포스터 생성", "📋 플랜 생성"])
+tab_chat, tab_poster, tab_plan, tab_email = st.tabs(["💬 채팅", "🎨 포스터 생성", "📋 플랜 생성", "✉️ 이메일 작성"])
 
 
 # ── 탭 1: 채팅 ────────────────────────────────────────────────────────────────
@@ -387,3 +434,179 @@ with tab_plan:
             mime="text/markdown",
             use_container_width=True,
         )
+
+
+# ── 탭 4: 이메일 작성 ─────────────────────────────────────────────────────────
+
+with tab_email:
+    st.caption("채팅으로 이메일 목적을 설명하면 AI가 초안을 생성하고 수신자를 추천합니다.")
+
+    # ── Step 1: 채팅으로 이메일 내용 설명 ────────────────────────────────────
+
+    st.markdown("### Step 1. 채팅으로 이메일 내용 설명")
+
+    for msg in st.session_state.email_messages:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    if email_prompt := st.chat_input("이메일 내용을 설명해주세요...", key="email_chat_input"):
+        st.session_state.email_messages.append({"role": "user", "content": email_prompt})
+        with st.chat_message("user"):
+            st.write(email_prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("이메일 초안을 생성하는 중입니다..."):
+                try:
+                    draft_result = _draft_email(st.session_state.email_messages)
+                    if draft_result.get("success"):
+                        draft_data = draft_result["data"]
+
+                        # 폼 필드 동기화 — session state 직접 업데이트해야 위젯에 반영됨
+                        st.session_state.email_draft = {
+                            "subject": draft_data["subject"],
+                            "body": draft_data["body"],
+                        }
+                        st.session_state["email_subject"] = draft_data["subject"]
+                        st.session_state["email_body"] = draft_data["body"]
+
+                        # assistant 메시지에 전체 본문 포함 — 다음 수정 요청 시 GPT가 참조
+                        assistant_msg = (
+                            f"초안이 생성되었습니다. 수정이 필요하면 채팅으로 알려주세요.\n\n"
+                            f"**제목**: {draft_data['subject']}\n\n"
+                            f"**본문**:\n{draft_data['body']}"
+                        )
+                        st.write(assistant_msg)
+                        st.session_state.email_messages.append({"role": "assistant", "content": assistant_msg})
+
+                        # 수신자 추천 자동 실행
+                        rec_result = _recommend_recipients(draft_data["subject"], draft_data["body"])
+                        if rec_result.get("success"):
+                            st.session_state.email_suggestions = {
+                                "to_suggestion": rec_result["data"].get("to_suggestion"),
+                                "cc_suggestions": rec_result["data"].get("cc_suggestions", []),
+                            }
+
+                        if draft_data.get("sources"):
+                            with st.expander("📎 참고 사내 문서"):
+                                for src in draft_data["sources"]:
+                                    st.caption(f"📄 {src}")
+                    else:
+                        error_msg = f"초안 생성 실패: {draft_result.get('error')}"
+                        st.error(error_msg)
+                        st.session_state.email_messages.append({"role": "assistant", "content": error_msg})
+                except requests.exceptions.ConnectionError:
+                    st.error("백엔드에 연결할 수 없습니다.")
+                except requests.exceptions.HTTPError as e:
+                    detail = e.response.json().get("detail", str(e)) if e.response else str(e)
+                    st.error(f"오류: {detail}")
+                except Exception as e:
+                    st.error(f"알 수 없는 오류: {e}")
+
+    if st.button("🗑️ 대화 초기화", key="email_clear", use_container_width=False):
+        st.session_state.email_messages = []
+        st.session_state.email_draft = None
+        st.session_state.email_suggestions = {"to_suggestion": None, "cc_suggestions": []}
+        for k in ["email_to", "email_cc", "email_subject", "email_body"]:
+            st.session_state.pop(k, None)
+        st.session_state.pop("email_sent", None)
+        st.rerun()
+
+    # ── Step 2: 초안 확인 및 수정 ────────────────────────────────────────────
+
+    st.markdown("### Step 2. 초안 확인 및 수정")
+
+    suggestions = st.session_state.email_suggestions
+    to_sug = suggestions.get("to_suggestion")
+    cc_sugs = suggestions.get("cc_suggestions", [])
+
+    # 받는 사람 (To)
+    if to_sug:
+        with st.expander(f"💡 AI 주 수신자 추천: **{to_sug['name']}** ({to_sug['team']}) — {to_sug['reason']}"):
+            if st.button("이 사람으로 설정", key="apply_to_sug"):
+                st.session_state["email_to"] = to_sug["email"]
+                st.rerun()
+
+    email_to = st.text_input("받는 사람 (To)", placeholder="recipient@example.com", key="email_to")
+
+    # 참조 (CC)
+    if cc_sugs:
+        with st.expander("💡 AI 참조(CC) 추천 (선택하면 CC에 추가됩니다)"):
+            selected_cc_emails = []
+            for rec in cc_sugs:
+                if st.checkbox(
+                    f"{rec['name']} ({rec['team']}) — {rec['reason']}",
+                    key=f"email_rec_{rec['email']}",
+                ):
+                    selected_cc_emails.append(rec["email"])
+            if selected_cc_emails and st.button("선택한 담당자를 CC에 추가", key="apply_cc_sug"):
+                existing = st.session_state.get("email_cc", "")
+                existing_list = [e.strip() for e in existing.split(",") if e.strip()]
+                merged = list(dict.fromkeys(existing_list + selected_cc_emails))
+                st.session_state["email_cc"] = ", ".join(merged)
+                st.rerun()
+
+    email_cc = st.text_area(
+        "참조 (CC) — 쉼표로 구분",
+        height=68,
+        placeholder="cc1@example.com, cc2@example.com",
+        key="email_cc",
+    )
+    email_subject = st.text_input("제목", key="email_subject")
+    email_body = st.text_area("본문", height=300, key="email_body")
+
+    # ── Step 3: 파일 첨부 & 전송 ─────────────────────────────────────────────
+
+    st.markdown("### Step 3. 파일 첨부 & 전송")
+
+    email_attachments = st.file_uploader(
+        "첨부 파일",
+        accept_multiple_files=True,
+        type=["pdf", "docx", "txt", "xlsx", "png", "jpg", "jpeg"],
+        key="email_attachments",
+    )
+
+    if st.button("📨 전송하기", type="primary", use_container_width=True, disabled=not email_to.strip()):
+        with st.spinner("이메일을 전송하는 중입니다..."):
+            try:
+                cc_list = [addr.strip() for addr in email_cc.split(",") if addr.strip()]
+                send_result = _send_email(
+                    to=email_to.strip(),
+                    cc_list=cc_list,
+                    subject=email_subject.strip(),
+                    body=email_body,
+                    attachments=list(email_attachments) if email_attachments else [],
+                )
+                if send_result.get("success"):
+                    d = send_result["data"]
+                    st.session_state["email_sent"] = d
+                else:
+                    st.error(f"전송 실패: {send_result.get('error')}")
+            except requests.exceptions.ConnectionError:
+                st.error("백엔드에 연결할 수 없습니다.")
+            except requests.exceptions.HTTPError as e:
+                detail = e.response.json().get("detail", str(e)) if e.response else str(e)
+                st.error(f"오류: {detail}")
+            except Exception as e:
+                st.error(f"알 수 없는 오류: {e}")
+
+    if st.session_state.get("email_sent"):
+        sent = st.session_state["email_sent"]
+        st.success("✅ 이메일이 전송되었습니다.")
+        with st.container(border=True):
+            st.markdown("#### 📧 전송된 이메일")
+            st.markdown(f"**받는 사람** &nbsp; `{sent['to']}`")
+            if sent.get("cc"):
+                st.markdown(f"**참조(CC)** &nbsp; `{', '.join(sent['cc'])}`")
+            st.markdown(f"**제목** &nbsp; {sent['subject']}")
+            st.divider()
+            st.markdown(sent["body"])
+            if sent.get("attachment_names"):
+                st.markdown("**첨부 파일**")
+                for fname in sent["attachment_names"]:
+                    st.caption(f"📎 {fname}")
+        if st.button("새 이메일 작성", use_container_width=True):
+            st.session_state.email_messages = []
+            st.session_state.email_draft = None
+            st.session_state.email_recipients = []
+            st.session_state.pop("email_sent", None)
+            st.rerun()

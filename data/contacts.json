@@ -1,0 +1,32 @@
+[
+  {
+    "name": "박민재",
+    "team": "상품기획팀",
+    "role": "팀원",
+    "email": "mj.park@company.com"
+  },
+  {
+    "name": "윤하나",
+    "team": "재무팀",
+    "role": "팀원",
+    "email": "ha.yoon@company.com"
+  },
+  {
+    "name": "최유진",
+    "team": "RA팀",
+    "role": "팀원",
+    "email": "yj.choi@company.com"
+  },
+  {
+    "name": "이도현",
+    "team": "영업팀",
+    "role": "팀원",
+    "email": "dh.lee@company.com"
+  },
+  {
+    "name": "김서연",
+    "team": "CX팀",
+    "role": "팀원",
+    "email": "sy.kim@company.com"
+  }
+]
