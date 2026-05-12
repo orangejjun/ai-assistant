@@ -16,6 +16,7 @@
 | 이미지 생성 | OpenAI `dall-e-3` |
 | PPT 생성 | `python-pptx` |
 | 웹 검색 | Naver Search API |
+| 이메일 발송 | Resend API |
 | 프론트엔드 | Streamlit |
 
 ## 환경변수 (.env)
@@ -25,6 +26,8 @@
 | `OPENAI_API_KEY` | GPT, 임베딩, dall-e-3 |
 | `NAVER_CLIENT_ID` | Naver Search API |
 | `NAVER_CLIENT_SECRET` | Naver Search API |
+| `RESEND_API_KEY` | Resend 이메일 발송 |
+| `RESEND_FROM_EMAIL` | 발신자 주소 (기본: `onboarding@resend.dev`) |
 
 ---
 

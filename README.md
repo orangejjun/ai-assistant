@@ -1,21 +1,57 @@
 # AI Assistant — 사내 문서 기반 RAG 비서
 
-사내 문서를 벡터 DB에 저장하고 자연어 질의로 검색하여 GPT-4o-mini로 답변을 반환하는 RAG 시스템.
+사내 문서를 벡터 DB에 인덱싱하고, 자연어 질의에 RAG + GPT-4o-mini로 답변하는 시스템.
+포스터 생성, PPT 생성, 프로젝트 플랜 생성, 이메일 작성·발송 기능을 포함한다.
+
+---
+
+## 기술 스택
+
+| 역할 | 기술 |
+|------|------|
+| 런타임 | Python 3.11 |
+| 웹 프레임워크 | FastAPI |
+| 임베딩 | OpenAI `text-embedding-3-small` |
+| 벡터 DB | ChromaDB (로컬) |
+| LLM | OpenAI `gpt-4o-mini` |
+| 이미지 생성 | OpenAI `dall-e-3` |
+| PPT 생성 | `python-pptx` |
+| 웹 검색 | Naver Search API |
+| 이메일 발송 | Resend API |
+| 프론트엔드 | Streamlit |
+
+---
+
+## 주요 기능
+
+| 탭 | 기능 |
+|----|------|
+| 💬 채팅 | 문서 기반 RAG 질의응답 + Naver 웹 검색 토글 |
+| 🎨 포스터 생성 | 주제 입력 → 문서 검색 → dall-e-3 평면 디지털 그래픽 생성 |
+| 📊 PPT 생성 | 주제 + 슬라이드 수 입력 → python-pptx .pptx 파일 다운로드 |
+| 📋 플랜 생성 | 프로젝트 목표 + 채팅 이력 기반 TODO 마크다운 플랜 생성 |
+| ✉️ 이메일 작성 | 대화로 이메일 초안 작성 → 수신자 추천 → Resend API 실제 발송 |
 
 ---
 
 ## 개발 Phase
 
-| Phase | 상태 | 내용 |
-|-------|------|------|
-| Phase 1 | ✅ | 문서 파싱, 청크, 임베딩, ChromaDB 저장 (CLI) |
-| Phase 2 | ✅ | 벡터 검색, GPT 답변 생성 |
-| Phase 3 | ✅ | Streamlit UI + FastAPI 백엔드 |
-| Phase 4 | ✅ | Docker, 클라우드 배포 |
-| Phase 5 | ✅ | UI 파일 업로드 + POST /upload 인덱싱 API |
-| Phase 6 | ✅ | 영어 Pivot 번역으로 Cross-lingual Retrieval 해결 |
-| Phase 7 | ✅ | 파일 삭제 기능 (휴지통 방식, GET /files, DELETE /files) |
-| Phase 8 | ✅ | start.sh 자동 실행 스크립트 |
+| Phase | 내용 |
+|-------|------|
+| Phase 1 ✅ | 문서 파싱, 청크, 임베딩, ChromaDB 저장 (CLI) |
+| Phase 2 ✅ | 벡터 검색, GPT 답변 생성 |
+| Phase 3 ✅ | Streamlit UI + FastAPI 백엔드 |
+| Phase 4 ✅ | Docker, 클라우드 배포 |
+| Phase 5 ✅ | UI 파일 업로드 + POST /upload 인덱싱 API |
+| Phase 6 ✅ | 영어 Pivot 번역 — Cross-lingual Retrieval 해결 |
+| Phase 7 ✅ | 파일 삭제 기능 (휴지통 방식, GET /files, DELETE /files) |
+| Phase 8 ✅ | start.sh 자동 실행 스크립트 |
+| Phase 9 ✅ | dall-e-3 포스터 생성 (POST /poster, 포스터 탭) |
+| Phase 10 ✅ | 문서 + 채팅 이력 기반 인터랙티브 TODO 플랜 생성 (POST /plan) |
+| Phase 11 ✅ | Naver 웹 검색 연동 — 채팅 토글로 선택 활성화 |
+| Phase 12 ✅ | 번역 병렬 배치 처리 + 토큰/청크 크기 최적화 |
+| Phase 15 ✅ | python-pptx PPT 생성 (POST /ppt, PPT 탭) |
+| Phase 16 ✅ | Resend API 실제 이메일 발송 (개인 메일 계정 불필요) |
 
 ---
 
@@ -25,24 +61,38 @@
 cp .env.example .env
 ```
 
-`.env` 파일을 열어 API 키를 입력합니다.
+`.env`를 열어 아래 값을 입력합니다.
 
-```dotenv
-OPENAI_API_KEY=sk-...
-```
+| 변수 | 용도 | 필수 |
+|------|------|------|
+| `OPENAI_API_KEY` | GPT, 임베딩, dall-e-3 | ✅ |
+| `NAVER_CLIENT_ID` | Naver 웹 검색 | 웹 검색 사용 시 |
+| `NAVER_CLIENT_SECRET` | Naver 웹 검색 | 웹 검색 사용 시 |
+| `RESEND_API_KEY` | 이메일 실제 발송 | 이메일 발송 사용 시 |
+| `RESEND_FROM_EMAIL` | 발신자 주소 (기본: `onboarding@resend.dev`) | 이메일 발송 사용 시 |
+
+> **Resend 설정**: [resend.com](https://resend.com) 가입 후 API 키 발급. 무료 테스트 발신자(`onboarding@resend.dev`)는 가입 시 등록한 이메일로만 수신 가능.
 
 ---
 
 ## 실행 방법
 
-### A. 로컬 실행 (venv)
+### A. 자동 실행 (권장)
 
 ```bash
-# 가상환경 생성 및 활성화
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+./start.sh
+```
 
-# 패키지 설치
+백엔드(8000)와 프론트엔드(8501)를 동시에 실행합니다. 접속: `http://localhost:8501`
+
+---
+
+### B. 수동 실행
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+
 pip install -r requirements.txt
 
 # 터미널 1 — FastAPI 백엔드
@@ -56,14 +106,7 @@ streamlit run frontend/app.py
 
 ---
 
-### B. Docker 실행
-
-#### 사전 요구사항
-
-- Docker Desktop 설치 및 실행 중
-- `.env` 파일에 `OPENAI_API_KEY` 입력 완료
-
-#### 빌드 및 실행
+### C. Docker 실행
 
 ```bash
 docker-compose up --build
@@ -75,15 +118,13 @@ docker-compose up --build
 docker-compose up --build -d
 ```
 
-접속: `http://localhost:8501`
-
-#### 서비스 중지
+중지:
 
 ```bash
 docker-compose down
 ```
 
-#### 로그 확인
+로그 확인:
 
 ```bash
 docker-compose logs -f backend
@@ -92,37 +133,34 @@ docker-compose logs -f frontend
 
 ---
 
-### C. 파일 업로드 (UI)
+## 파일 업로드 / 관리
 
-서버 실행 후 `http://localhost:8501` 에 접속하여 왼쪽 사이드바 **파일 업로드** 섹션을 사용합니다.
+1. 사이드바 **파일 업로드** → PDF, DOCX, TXT, XLSX 선택 → **업로드 & 인덱싱**
+2. 업로드 즉시 파싱 → 영어 번역 → 임베딩 → ChromaDB 저장
+3. 사이드바 **인덱싱된 파일 목록**에서 파일별 삭제 가능 (휴지통 이동)
 
-1. **파일 선택** — PDF, DOCX, TXT, XLSX 중 하나를 선택합니다.
-2. **업로드 & 인덱싱** 버튼 클릭 → 파일이 `data/raw/` 에 저장되고 즉시 임베딩 후 ChromaDB에 추가됩니다.
-3. 업로드 완료 후 채팅에서 해당 파일 내용을 바로 질문할 수 있습니다.
-
-> **중복 처리**: 이미 인덱싱된 파일(내용 기준 MD5 비교)은 재처리 없이 안내 메시지를 반환합니다.
-
-#### API 직접 사용 (curl)
-
-```bash
-curl -X POST http://localhost:8000/upload \
-  -F "file=@/path/to/document.pdf"
-```
+> MD5 해시 기반 중복 방지 — 동일 내용 파일 재업로드 시 건너뜀
 
 ---
 
-### D. CLI (문서 인덱싱 / 질의)
+## API 엔드포인트
 
-```bash
-# 문서 인덱싱
-python run_ingest.py --folder data/raw
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| POST | `/upload` | 파일 업로드 + 즉시 인덱싱 |
+| POST | `/ingest` | 폴더 전체 인덱싱 |
+| POST | `/query` | RAG 질의응답 |
+| GET | `/files` | 인덱싱된 파일 목록 |
+| DELETE | `/files` | 파일 삭제 (휴지통) |
+| POST | `/poster` | 포스터 이미지 생성 |
+| POST | `/ppt` | PPT 파일 생성 |
+| POST | `/plan` | 프로젝트 플랜 생성 |
+| POST | `/email/draft` | 이메일 초안 생성 |
+| POST | `/email/recipients` | 수신자 추천 |
+| POST | `/email/send` | 이메일 실제 발송 |
+| GET | `/status` | ChromaDB 청크 수 조회 |
 
-# 질의
-python run_query.py --query "연차 신청은 며칠 전에 해야 하나요?"
-
-# 디버그 모드 (검색된 청크 출력)
-python run_query.py --query "..." --debug
-```
+API 문서: `http://localhost:8000/docs`
 
 ---
 
@@ -131,18 +169,28 @@ python run_query.py --query "..." --debug
 ```
 ai-assistant/
 ├── backend/
-│   ├── ingest/     # 파일 파싱, 청크, 임베딩
-│   ├── retrieval/  # 벡터 검색
-│   ├── agent/      # Sub Agent (Retrieval, Answer, Main)
-│   └── api/        # FastAPI 라우터
-├── frontend/       # Streamlit UI
+│   ├── ingest/             # 파일 파싱, 청크, 영어 번역, 임베딩
+│   ├── retrieval/          # 벡터 검색 에이전트
+│   ├── agent/
+│   │   ├── main_agent.py
+│   │   ├── poster_agent.py
+│   │   ├── ppt_agent.py
+│   │   ├── plan_agent.py
+│   │   ├── email_draft_agent.py
+│   │   ├── email_recipient_agent.py
+│   │   └── email_sender_agent.py
+│   └── api/                # FastAPI 라우터
+├── frontend/
+│   └── app.py              # Streamlit UI (TDS 스타일)
 ├── data/
-│   ├── raw/        # 원본 문서 보관
-│   └── vectordb/   # ChromaDB 저장소 (볼륨 마운트)
-├── tests/          # pytest 테스트 (100개)
-├── skills/         # 반복 작업 패턴
-├── Dockerfile
+│   ├── raw/                # 업로드된 원본 문서
+│   ├── trash/              # 삭제된 문서 (휴지통)
+│   └── vectordb/           # ChromaDB + hash_store.json
+├── docs/
+│   ├── phases.md
+│   └── architecture.md
+├── tests/
+├── start.sh                # 백엔드 + 프론트엔드 동시 실행
 ├── docker-compose.yml
-├── deploy.sh       # 프로덕션 배포 스크립트
-└── .env            # API 키 (gitignore 처리)
+└── .env.example
 ```
