@@ -1,8 +1,11 @@
+import os
 import uuid
+
+import resend
 
 
 class EmailSenderAgent:
-    """데모용 이메일 전송 에이전트 — 실제 전송 없이 이메일 데이터를 반환한다."""
+    """Resend API를 사용해 이메일을 실제 발송하는 에이전트."""
 
     def run(self, payload: dict) -> dict:
         try:
@@ -23,8 +26,31 @@ class EmailSenderAgent:
         if not subject:
             raise ValueError("제목(subject)이 비어 있습니다.")
 
+        api_key = os.getenv("RESEND_API_KEY", "")
+        from_email = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")
+        if not api_key:
+            raise ValueError("RESEND_API_KEY 환경변수가 필요합니다.")
+
+        resend.api_key = api_key
+
+        params: resend.Emails.SendParams = {
+            "from": from_email,
+            "to": [to],
+            "subject": subject,
+            "text": body,
+        }
+        if cc:
+            params["cc"] = cc
+        if attachments:
+            params["attachments"] = [
+                {"filename": att["filename"], "content": list(att["content"])}
+                for att in attachments
+            ]
+
+        response = resend.Emails.send(params)
+
         return {
-            "message_id": str(uuid.uuid4()),
+            "message_id": response.id if hasattr(response, "id") else str(uuid.uuid4()),
             "to": to,
             "cc": cc,
             "subject": subject,
@@ -34,13 +60,16 @@ class EmailSenderAgent:
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+
+    load_dotenv()
     agent = EmailSenderAgent()
     result = agent.run(
         {
-            "to": "demo@example.com",
-            "cc": ["cc@example.com"],
-            "subject": "[데모] AI 비서 이메일 테스트",
-            "body": "이 메일은 데모용 이메일입니다.",
+            "to": "test@naver.com",
+            "cc": [],
+            "subject": "[테스트] AI 비서 이메일 발송",
+            "body": "Resend API를 통한 실제 발송 테스트입니다.",
             "attachments": [],
         }
     )
