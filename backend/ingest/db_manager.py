@@ -1,4 +1,5 @@
 import os
+import random
 from typing import List, Dict
 
 import chromadb
@@ -80,6 +81,24 @@ def reset_collection() -> None:
         name=COLLECTION_NAME,
         metadata={"hnsw:space": "cosine"},
     )
+
+
+def get_random_chunks(k: int = 5) -> List[Dict]:
+    """ChromaDB에서 랜덤 오프셋으로 k개 청크를 샘플링해 반환한다."""
+    collection = get_collection()
+    total = collection.count()
+    if total == 0:
+        return []
+    offset = random.randint(0, max(0, total - k))
+    result = collection.get(
+        limit=k,
+        offset=offset,
+        include=["documents", "metadatas"],
+    )
+    return [
+        {"chunk_text": doc, "source_file": meta.get("source_file", "")}
+        for doc, meta in zip(result["documents"], result["metadatas"])
+    ]
 
 
 def get_stats() -> Dict:

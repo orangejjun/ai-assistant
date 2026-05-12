@@ -54,6 +54,7 @@
 | 포스터 프롬프트 max_tokens | 1536 |
 | PPT 슬라이드 max_tokens | 4096 |
 | 번역 배치 max_tokens | 4096 |
+| 추천 질문 max_tokens | 512 |
 
 - 임베딩은 **영어 번역본**으로 생성, ChromaDB에는 **원본** 저장 (Cross-lingual Retrieval)
 - MD5 해시로 중복 인덱싱 방지 (`hash_store.json`)

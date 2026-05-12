@@ -17,6 +17,7 @@ from backend.agent.main_agent import MainAgent
 from backend.agent.poster_agent import PosterAgent
 from backend.agent.ppt_agent import PptAgent
 from backend.agent.plan_agent import PlanAgent
+from backend.agent.suggestion_agent import SuggestionAgent
 from backend.agent.email_draft_agent import EmailDraftAgent
 from backend.agent.email_recipient_agent import EmailRecipientAgent
 from backend.agent.email_sender_agent import EmailSenderAgent
@@ -323,6 +324,21 @@ async def create_plan(request: PlanRequest) -> ApiResponse:
         raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/suggestions", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def get_suggestions() -> ApiResponse:
+    """인덱싱된 문서에서 랜덤 샘플링 후 GPT로 추천 질문 3개를 생성한다."""
+    try:
+        agent = SuggestionAgent()
+        result = await asyncio.to_thread(agent.run, {})
+        if not result["success"]:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result["error"])
+        return ApiResponse(success=True, data=result["data"])
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

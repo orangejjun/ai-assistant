@@ -16,6 +16,7 @@
 | Phase 12 | 번역 병렬 배치 처리 + 토큰/청크 크기 최적화 |
 | Phase 15 | python-pptx PPT 생성 (POST /ppt, PPT 탭) |
 | Phase 16 | Resend API 실제 이메일 발송 (개인 메일 계정 불필요) |
+| Phase 17 | 임베딩 기반 동적 추천 질문 생성 (GET /suggestions, SuggestionAgent) |
 
 ## Progress
 
@@ -33,3 +34,4 @@
 - [x] Phase 12 — 번역 병렬 배치 처리, 토큰/청크 크기 최적화 ✅ 2026-05-08
 - [x] Phase 15 — python-pptx PPT 생성, POST /ppt, PPT 탭 ✅ 2026-05-12
 - [x] Phase 16 — Resend API 실제 이메일 발송, email_sender_agent.py 교체 ✅ 2026-05-13
+- [x] Phase 17 — 임베딩 기반 동적 추천 질문, SuggestionAgent, GET /suggestions ✅ 2026-05-13

@@ -84,6 +84,8 @@ if "email_suggestions" not in st.session_state:
     st.session_state.email_suggestions = {"to_suggestion": None, "cc_suggestions": []}
 if "generating" not in st.session_state:
     st.session_state.generating = False
+if "suggested_questions" not in st.session_state:
+    st.session_state.suggested_questions = []
 
 
 # ── 헬퍼 ─────────────────────────────────────────────────────────────────────
@@ -166,6 +168,16 @@ def _create_plan(goal: str, chat_history: list) -> dict:
     )
     res.raise_for_status()
     return res.json()
+
+
+def _get_suggestions() -> list[str]:
+    try:
+        res = requests.get(f"{API_BASE}/suggestions", timeout=15)
+        if res.ok:
+            return res.json().get("data", {}).get("suggestions", [])
+    except Exception:
+        pass
+    return []
 
 
 def _upload_file(file) -> dict:
@@ -307,37 +319,55 @@ with st.sidebar:
     st.divider()
     st.subheader("📤 파일 업로드")
 
-    uploaded = st.file_uploader(
-        "파일 선택",
+    uploaded_files = st.file_uploader(
+        "파일 선택 (여러 개 동시 선택 또는 드래그 앤 드롭)",
         type=["pdf", "docx", "txt", "xlsx"],
-        help="업로드하면 즉시 임베딩 후 벡터DB에 저장됩니다.",
+        accept_multiple_files=True,
+        help="PDF, DOCX, TXT, XLSX 지원. 여러 파일을 한 번에 선택하거나 드래그해서 올릴 수 있습니다.",
     )
 
-    if uploaded and st.button("업로드 & 인덱싱", type="primary", use_container_width=True):
-        with st.spinner(f"{uploaded.name} 인덱싱 중..."):
+    if uploaded_files and st.button("업로드 & 인덱싱", type="primary", use_container_width=True):
+        total_chunks = 0
+        success_count = 0
+        duplicate_count = 0
+        errors = []
+
+        progress = st.progress(0, text="업로드 준비 중...")
+        for i, f in enumerate(uploaded_files):
+            progress.progress((i + 1) / len(uploaded_files), text=f"{f.name} 처리 중... ({i + 1}/{len(uploaded_files)})")
             try:
-                result = _upload_file(uploaded)
+                result = _upload_file(f)
                 if result.get("success"):
                     d = result["data"]
                     if d.get("duplicate"):
-                        st.warning("⚠️ 이미 인덱싱된 파일입니다.")
+                        duplicate_count += 1
                     else:
-                        st.success(
-                            f"✅ 완료\n\n"
-                            f"- 파일명: **{d['filename']}**\n"
-                            f"- 신규 청크: **{d['chunks']}개**\n"
-                            f"- DB 누적 청크: **{d['db_total_chunks']}개**"
-                        )
-                    st.rerun()
+                        success_count += 1
+                        total_chunks += d.get("chunks", 0)
                 else:
-                    st.error(f"오류: {result.get('error')}")
+                    errors.append(f"{f.name}: {result.get('error')}")
             except requests.exceptions.ConnectionError:
-                st.error("백엔드에 연결할 수 없습니다.")
+                errors.append(f"{f.name}: 백엔드에 연결할 수 없습니다.")
             except requests.exceptions.HTTPError as e:
                 detail = e.response.json().get("detail", str(e)) if e.response else str(e)
-                st.error(f"오류: {detail}")
+                errors.append(f"{f.name}: {detail}")
             except Exception as e:
-                st.error(f"알 수 없는 오류: {e}")
+                errors.append(f"{f.name}: {e}")
+
+        progress.empty()
+
+        if success_count:
+            st.success(
+                f"✅ {success_count}개 파일 인덱싱 완료\n\n"
+                f"- 신규 청크: **{total_chunks}개**"
+                + (f"\n- 중복 건너뜀: **{duplicate_count}개**" if duplicate_count else "")
+            )
+        elif duplicate_count:
+            st.warning(f"⚠️ {duplicate_count}개 파일 모두 이미 인덱싱된 파일입니다.")
+        for err in errors:
+            st.error(f"오류: {err}")
+        if success_count or duplicate_count:
+            st.rerun()
 
     st.divider()
     st.subheader("🗂️ 인덱싱된 파일 관리")
@@ -385,12 +415,6 @@ tab_chat, tab_poster, tab_ppt, tab_plan, tab_email = st.tabs(["💬 채팅", "�
 
 
 # ── 탭 1: 채팅 ────────────────────────────────────────────────────────────────
-
-_SUGGESTED_QUESTIONS = [
-    "최근 가격 정책 변경 내용은?",
-    "올리브영 채널 현황을 요약해줘",
-    "프로젝트 일정을 알려줘",
-]
 
 with tab_chat:
     st.caption("사내 문서를 기반으로 질문에 답변합니다.")
@@ -460,16 +484,31 @@ with tab_chat:
             '<div style="font-size:48px;margin-bottom:16px;">📚</div>'
             '<div style="font-size:20px;font-weight:700;color:#191F28;margin-bottom:8px;">AI 문서 비서에 오신 것을 환영합니다</div>'
             '<div style="font-size:14px;color:#6B7684;margin-bottom:28px;">인덱싱된 사내 문서를 기반으로 질문에 답변해 드립니다</div>'
-            '<div style="font-size:12px;color:#B0B8C1;margin-bottom:10px;">추천 질문</div>'
             '</div>',
             unsafe_allow_html=True,
         )
-        cols = st.columns(len(_SUGGESTED_QUESTIONS))
-        for i, q in enumerate(_SUGGESTED_QUESTIONS):
-            if cols[i].button(q, key=f"sq_{i}", use_container_width=True):
+
+        if not st.session_state.suggested_questions:
+            with st.spinner("추천 질문 생성 중..."):
+                st.session_state.suggested_questions = _get_suggestions()
+
+        st.markdown(
+            '<p style="text-align:center;font-size:12px;color:#B0B8C1;margin:0 0 10px;">💡 추천 질문</p>',
+            unsafe_allow_html=True,
+        )
+
+        suggestions = st.session_state.suggested_questions
+        chips = suggestions if suggestions else []
+        col_spec = [1] * max(len(chips), 1) + [0.13]
+        cols = st.columns(col_spec)
+        for i, q in enumerate(chips):
+            if cols[i].button(f"↗  {q}", key=f"sq_{i}", use_container_width=True):
                 st.session_state.messages.append({"role": "user", "content": q})
                 st.session_state.generating = True
                 st.rerun()
+        if cols[-1].button("🔄", key="refresh_sq", help="새 추천 질문 생성", use_container_width=True):
+            st.session_state.suggested_questions = []
+            st.rerun()
 
     # ── 스크롤 → chat_input 이전 호출로 정상 flow 내 렌더링 ──
     _scroll_to_bottom()

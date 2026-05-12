@@ -26,7 +26,7 @@
 
 | 탭 | 기능 |
 |----|------|
-| 💬 채팅 | 문서 기반 RAG 질의응답 + Naver 웹 검색 토글 |
+| 💬 채팅 | 문서 기반 RAG 질의응답 + Naver 웹 검색 토글 + 임베딩 기반 추천 질문 |
 | 🎨 포스터 생성 | 주제 입력 → 문서 검색 → dall-e-3 평면 디지털 그래픽 생성 |
 | 📊 PPT 생성 | 주제 + 슬라이드 수 입력 → python-pptx .pptx 파일 다운로드 |
 | 📋 플랜 생성 | 프로젝트 목표 + 채팅 이력 기반 TODO 마크다운 플랜 생성 |
@@ -52,6 +52,7 @@
 | Phase 12 ✅ | 번역 병렬 배치 처리 + 토큰/청크 크기 최적화 |
 | Phase 15 ✅ | python-pptx PPT 생성 (POST /ppt, PPT 탭) |
 | Phase 16 ✅ | Resend API 실제 이메일 발송 (개인 메일 계정 불필요) |
+| Phase 17 ✅ | 임베딩 기반 동적 추천 질문 생성 (GET /suggestions) |
 
 ---
 
@@ -135,7 +136,7 @@ docker-compose logs -f frontend
 
 ## 파일 업로드 / 관리
 
-1. 사이드바 **파일 업로드** → PDF, DOCX, TXT, XLSX 선택 → **업로드 & 인덱싱**
+1. 사이드바 **파일 업로드** → PDF, DOCX, TXT, XLSX 선택 (여러 개 동시 선택 또는 드래그 앤 드롭) → **업로드 & 인덱싱**
 2. 업로드 즉시 파싱 → 영어 번역 → 임베딩 → ChromaDB 저장
 3. 사이드바 **인덱싱된 파일 목록**에서 파일별 삭제 가능 (휴지통 이동)
 
@@ -158,6 +159,7 @@ docker-compose logs -f frontend
 | POST | `/email/draft` | 이메일 초안 생성 |
 | POST | `/email/recipients` | 수신자 추천 |
 | POST | `/email/send` | 이메일 실제 발송 |
+| GET | `/suggestions` | 문서 기반 추천 질문 3개 생성 |
 | GET | `/status` | ChromaDB 청크 수 조회 |
 
 API 문서: `http://localhost:8000/docs`
@@ -178,7 +180,8 @@ ai-assistant/
 │   │   ├── plan_agent.py
 │   │   ├── email_draft_agent.py
 │   │   ├── email_recipient_agent.py
-│   │   └── email_sender_agent.py
+│   │   ├── email_sender_agent.py
+│   │   └── suggestion_agent.py
 │   └── api/                # FastAPI 라우터
 ├── frontend/
 │   └── app.py              # Streamlit UI (TDS 스타일)
