@@ -300,6 +300,110 @@ def _scroll_to_bottom() -> None:
     )
 
 
+@st.dialog("📁 파일 관리", width="large")
+def _file_manager_dialog() -> None:
+    tab_upload, tab_ingest, tab_manage = st.tabs(["📤 파일 업로드", "🔄 폴더 인덱싱", "🗂️ 파일 목록"])
+
+    with tab_upload:
+        st.caption("PDF, DOCX, TXT, XLSX 파일을 업로드하면 즉시 파싱·임베딩·인덱싱됩니다.")
+        uploaded_files = st.file_uploader(
+            "파일 선택 (여러 개 동시 선택 또는 드래그 앤 드롭)",
+            type=["pdf", "docx", "txt", "xlsx"],
+            accept_multiple_files=True,
+        )
+        if uploaded_files and st.button("업로드 & 인덱싱", type="primary", use_container_width=True):
+            total_chunks = 0
+            success_count = 0
+            duplicate_count = 0
+            errors = []
+            progress = st.progress(0, text="업로드 준비 중...")
+            for i, f in enumerate(uploaded_files):
+                progress.progress(
+                    (i + 1) / len(uploaded_files),
+                    text=f"{f.name} 처리 중... ({i + 1}/{len(uploaded_files)})",
+                )
+                try:
+                    result = _upload_file(f)
+                    if result.get("success"):
+                        d = result["data"]
+                        if d.get("duplicate"):
+                            duplicate_count += 1
+                        else:
+                            success_count += 1
+                            total_chunks += d.get("chunks", 0)
+                    else:
+                        errors.append(f"{f.name}: {result.get('error')}")
+                except requests.exceptions.ConnectionError:
+                    errors.append(f"{f.name}: 백엔드에 연결할 수 없습니다.")
+                except requests.exceptions.HTTPError as e:
+                    detail = e.response.json().get("detail", str(e)) if e.response else str(e)
+                    errors.append(f"{f.name}: {detail}")
+                except Exception as e:
+                    errors.append(f"{f.name}: {e}")
+            progress.empty()
+            if success_count:
+                st.success(
+                    f"✅ {success_count}개 파일 인덱싱 완료  |  신규 청크: **{total_chunks}개**"
+                    + (f"  |  중복 건너뜀: **{duplicate_count}개**" if duplicate_count else "")
+                )
+            elif duplicate_count:
+                st.warning(f"⚠️ {duplicate_count}개 파일 모두 이미 인덱싱된 파일입니다.")
+            for err in errors:
+                st.error(f"오류: {err}")
+
+    with tab_ingest:
+        st.caption("지정한 폴더의 모든 문서를 일괄 스캔하여 인덱싱합니다.")
+        folder_path = st.text_input("스캔할 폴더 경로", value="data/raw", placeholder="data/raw")
+        if st.button("🔄 인덱싱 실행", type="primary", use_container_width=True):
+            with st.spinner("문서를 인덱싱 중입니다..."):
+                try:
+                    result = _run_ingest(folder_path)
+                    if result.get("success"):
+                        data = result["data"]
+                        if data["processed_files"] == 0:
+                            st.info("처리할 새 파일이 없습니다.")
+                        else:
+                            st.success(
+                                f"✅ 완료  |  처리 파일: **{data['processed_files']}개**"
+                                f"  |  신규 청크: **{data['total_chunks']}개**"
+                                f"  |  DB 누적: **{data['db_total_chunks']}개**"
+                            )
+                    else:
+                        st.error(f"오류: {result.get('error')}")
+                except requests.exceptions.ConnectionError:
+                    st.error("백엔드에 연결할 수 없습니다.")
+                except requests.exceptions.HTTPError as e:
+                    detail = e.response.json().get("detail", str(e)) if e.response else str(e)
+                    st.error(f"오류: {detail}")
+                except Exception as e:
+                    st.error(f"알 수 없는 오류: {e}")
+
+    with tab_manage:
+        st.caption("인덱싱된 파일을 확인하고 삭제할 수 있습니다. (삭제된 파일은 휴지통으로 이동됩니다)")
+        indexed_files = _list_files()
+        if indexed_files:
+            file_options = {f["filename"]: f["source_file"] for f in indexed_files}
+            selected_name = st.selectbox("삭제할 파일 선택", list(file_options.keys()))
+            if st.button("🗑️ 선택 파일 삭제", type="primary", use_container_width=True):
+                with st.spinner(f"{selected_name} 삭제 중..."):
+                    try:
+                        result = _delete_file(file_options[selected_name])
+                        if result.get("success"):
+                            d = result["data"]
+                            st.success(
+                                f"✅ 삭제 완료  |  **{d['filename']}**  |  청크 {d['deleted_chunks']}개 제거"
+                            )
+                        else:
+                            st.error(f"오류: {result.get('error')}")
+                    except requests.exceptions.HTTPError as e:
+                        detail = e.response.json().get("detail", str(e)) if e.response else str(e)
+                        st.error(f"오류: {detail}")
+                    except Exception as e:
+                        st.error(f"알 수 없는 오류: {e}")
+        else:
+            st.info("인덱싱된 파일이 없습니다.")
+
+
 def _render_email_steps(current: int) -> None:
     steps = ["채팅으로 내용 설명", "초안 검토 & 수신자", "첨부 & 전송"]
     html = '<div style="display:flex;align-items:center;margin-bottom:20px;padding:16px 20px;background:#fff;border:1px solid #E5E8EB;border-radius:12px;">'
@@ -329,127 +433,16 @@ def _render_email_steps(current: int) -> None:
 # ── 사이드바 ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("📁 문서 인덱싱")
+    st.title("AI 문서 비서")
 
     status = _get_status()
     if status:
-        st.metric("저장된 청크 수", status.get("total_chunks", 0))
+        st.metric("인덱싱된 청크", status.get("total_chunks", 0))
     else:
-        st.warning("⚠️ 백엔드에 연결할 수 없습니다.\n`uvicorn backend.api.main:app --reload` 를 실행하세요.")
+        st.warning("⚠️ 백엔드 연결 불가")
 
-    st.divider()
-
-    folder_path = st.text_input("스캔할 폴더 경로", value="data/raw", placeholder="data/raw")
-
-    if st.button("🔄 인덱싱 실행", type="primary", use_container_width=True):
-        with st.spinner("문서를 인덱싱 중입니다..."):
-            try:
-                result = _run_ingest(folder_path)
-                if result.get("success"):
-                    data = result["data"]
-                    if data["processed_files"] == 0:
-                        st.info("처리할 새 파일이 없습니다.")
-                    else:
-                        st.success(
-                            f"✅ 완료\n\n"
-                            f"- 처리 파일: **{data['processed_files']}개**\n"
-                            f"- 신규 청크: **{data['total_chunks']}개**\n"
-                            f"- DB 누적 청크: **{data['db_total_chunks']}개**"
-                        )
-                    st.rerun()
-                else:
-                    st.error(f"오류: {result.get('error')}")
-            except requests.exceptions.ConnectionError:
-                st.error("백엔드에 연결할 수 없습니다.")
-            except requests.exceptions.HTTPError as e:
-                detail = e.response.json().get("detail", str(e)) if e.response else str(e)
-                st.error(f"오류: {detail}")
-            except Exception as e:
-                st.error(f"알 수 없는 오류: {e}")
-
-    st.divider()
-    st.subheader("📤 파일 업로드")
-
-    uploaded_files = st.file_uploader(
-        "파일 선택 (여러 개 동시 선택 또는 드래그 앤 드롭)",
-        type=["pdf", "docx", "txt", "xlsx"],
-        accept_multiple_files=True,
-        help="PDF, DOCX, TXT, XLSX 지원. 여러 파일을 한 번에 선택하거나 드래그해서 올릴 수 있습니다.",
-    )
-
-    if uploaded_files and st.button("업로드 & 인덱싱", type="primary", use_container_width=True):
-        total_chunks = 0
-        success_count = 0
-        duplicate_count = 0
-        errors = []
-
-        progress = st.progress(0, text="업로드 준비 중...")
-        for i, f in enumerate(uploaded_files):
-            progress.progress((i + 1) / len(uploaded_files), text=f"{f.name} 처리 중... ({i + 1}/{len(uploaded_files)})")
-            try:
-                result = _upload_file(f)
-                if result.get("success"):
-                    d = result["data"]
-                    if d.get("duplicate"):
-                        duplicate_count += 1
-                    else:
-                        success_count += 1
-                        total_chunks += d.get("chunks", 0)
-                else:
-                    errors.append(f"{f.name}: {result.get('error')}")
-            except requests.exceptions.ConnectionError:
-                errors.append(f"{f.name}: 백엔드에 연결할 수 없습니다.")
-            except requests.exceptions.HTTPError as e:
-                detail = e.response.json().get("detail", str(e)) if e.response else str(e)
-                errors.append(f"{f.name}: {detail}")
-            except Exception as e:
-                errors.append(f"{f.name}: {e}")
-
-        progress.empty()
-
-        if success_count:
-            st.success(
-                f"✅ {success_count}개 파일 인덱싱 완료\n\n"
-                f"- 신규 청크: **{total_chunks}개**"
-                + (f"\n- 중복 건너뜀: **{duplicate_count}개**" if duplicate_count else "")
-            )
-        elif duplicate_count:
-            st.warning(f"⚠️ {duplicate_count}개 파일 모두 이미 인덱싱된 파일입니다.")
-        for err in errors:
-            st.error(f"오류: {err}")
-        if success_count or duplicate_count:
-            st.rerun()
-
-    st.divider()
-    st.subheader("🗂️ 인덱싱된 파일 관리")
-
-    indexed_files = _list_files()
-    if indexed_files:
-        file_options = {f["filename"]: f["source_file"] for f in indexed_files}
-        selected_name = st.selectbox("삭제할 파일 선택", list(file_options.keys()))
-
-        if st.button("🗑️ 선택 파일 삭제", type="primary", use_container_width=True):
-            with st.spinner(f"{selected_name} 삭제 중..."):
-                try:
-                    result = _delete_file(file_options[selected_name])
-                    if result.get("success"):
-                        d = result["data"]
-                        st.success(
-                            f"✅ 삭제 완료\n\n"
-                            f"- 파일명: **{d['filename']}**\n"
-                            f"- 삭제된 청크: **{d['deleted_chunks']}개**\n"
-                            f"- 이동 경로: `{d['moved_to'] or '파일 없음'}`"
-                        )
-                    else:
-                        st.error(f"오류: {result.get('error')}")
-                    st.rerun()
-                except requests.exceptions.HTTPError as e:
-                    detail = e.response.json().get("detail", str(e)) if e.response else str(e)
-                    st.error(f"오류: {detail}")
-                except Exception as e:
-                    st.error(f"알 수 없는 오류: {e}")
-    else:
-        st.caption("인덱싱된 파일이 없습니다.")
+    if st.button("📁 파일 관리", use_container_width=True, type="primary"):
+        _file_manager_dialog()
 
     st.divider()
     st.subheader("💬 대화 이력")
