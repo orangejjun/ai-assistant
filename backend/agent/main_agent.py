@@ -3,6 +3,7 @@ from typing import Any
 from backend.retrieval.retrieval_agent import RetrievalAgent
 from backend.agent.answer_agent import AnswerAgent
 from backend.agent.web_search import NaverSearchAgent
+from backend.memory.memory_retrieval import retrieve_relevant_memory, index_qa_pair
 
 
 class MainAgent:
@@ -29,14 +30,22 @@ class MainAgent:
             }
         return agent.run(payload)
 
-    def query(self, user_query: str, use_web_search: bool = False) -> dict:
+    def query(self, user_query: str, use_web_search: bool = False, session_id: str = "") -> dict:
         """
         사용자 질의를 받아 Retrieval → Answer 순서로 처리 후 결과를 반환한다.
 
         Returns:
             dict: success, data(answer, sources, query), error
         """
-        # 1. 벡터 검색
+        # 1. 과거 유사 대화 검색
+        memory_context: list = []
+        if session_id:
+            try:
+                memory_context = retrieve_relevant_memory(user_query, k=3)
+            except Exception:
+                pass
+
+        # 2. 벡터 검색
         retrieval_result = self.route("retrieval", {"query": user_query})
         if not retrieval_result["success"]:
             return {
@@ -47,21 +56,33 @@ class MainAgent:
 
         chunks = retrieval_result["data"]["chunks"]
 
-        # 2. 웹 검색 (선택)
+        # 3. 웹 검색 (선택)
         web_results = []
         if use_web_search:
             web_result = NaverSearchAgent().run({"query": user_query, "display": 5})
             if web_result["success"]:
                 web_results = web_result["data"]["results"]
 
-        # 3. 답변 생성
-        answer_result = self.route("answer", {"query": user_query, "chunks": chunks, "web_results": web_results})
+        # 4. 답변 생성
+        answer_result = self.route("answer", {
+            "query": user_query,
+            "chunks": chunks,
+            "web_results": web_results,
+            "memory_context": memory_context,
+        })
         if not answer_result["success"]:
             return {
                 "success": False,
                 "data": None,
                 "error": f"답변 생성 실패: {answer_result['error']}",
             }
+
+        # 5. Q&A 쌍 메모리 인덱싱
+        if session_id:
+            try:
+                index_qa_pair(session_id, user_query, answer_result["data"]["answer"])
+            except Exception:
+                pass
 
         return {
             "success": True,

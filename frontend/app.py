@@ -86,6 +86,11 @@ if "generating" not in st.session_state:
     st.session_state.generating = False
 if "suggested_questions" not in st.session_state:
     st.session_state.suggested_questions = []
+if "session_id" not in st.session_state:
+    import uuid as _uuid
+    st.session_state.session_id = _uuid.uuid4().hex[:12]
+if "history_list" not in st.session_state:
+    st.session_state.history_list = []
 
 
 # ── 헬퍼 ─────────────────────────────────────────────────────────────────────
@@ -113,11 +118,57 @@ def _run_ingest(folder_path: str) -> dict:
 def _run_query(query: str, use_web_search: bool = False) -> dict:
     res = requests.post(
         f"{API_BASE}/query",
-        json={"query": query, "use_web_search": use_web_search},
+        json={"query": query, "use_web_search": use_web_search, "session_id": st.session_state.session_id},
         timeout=60,
     )
     res.raise_for_status()
     return res.json()
+
+
+def _new_session_id() -> str:
+    import uuid as _uuid
+    return _uuid.uuid4().hex[:12]
+
+
+def _save_history() -> None:
+    try:
+        if not st.session_state.session_id:
+            return
+        requests.post(
+            f"{API_BASE}/history",
+            json={"session_id": st.session_state.session_id, "messages": st.session_state.messages},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
+def _list_history() -> list:
+    try:
+        res = requests.get(f"{API_BASE}/history", timeout=5)
+        if res.ok:
+            return res.json().get("data", {}).get("sessions", [])
+    except Exception:
+        pass
+    return []
+
+
+def _load_history(session_id: str) -> None:
+    try:
+        res = requests.get(f"{API_BASE}/history/{session_id}", timeout=10)
+        if res.ok:
+            data = res.json().get("data", {})
+            st.session_state.messages = data.get("messages", [])
+            st.session_state.session_id = session_id
+    except Exception:
+        pass
+
+
+def _delete_history(session_id: str) -> None:
+    try:
+        requests.delete(f"{API_BASE}/history/{session_id}", timeout=10)
+    except Exception:
+        pass
 
 
 def _list_files() -> list:
@@ -401,9 +452,57 @@ with st.sidebar:
         st.caption("인덱싱된 파일이 없습니다.")
 
     st.divider()
+    st.subheader("💬 대화 이력")
 
-    if st.button("🗑️ 대화 초기화", use_container_width=True):
+    col_new, col_refresh = st.columns([3, 1])
+    with col_new:
+        if st.button("+ 새 대화", use_container_width=True, type="primary"):
+            _save_history()
+            st.session_state.session_id = _new_session_id()
+            st.session_state.messages = []
+            st.session_state.suggested_questions = []
+            st.session_state.history_list = _list_history()
+            st.rerun()
+    with col_refresh:
+        if st.button("↺", use_container_width=True, help="이력 새로고침"):
+            st.session_state.history_list = _list_history()
+            st.rerun()
+
+    if not st.session_state.history_list:
+        st.session_state.history_list = _list_history()
+
+    for s in st.session_state.history_list[:10]:
+        sid = s["session_id"]
+        date_str = s["updated_at"][:10] if s.get("updated_at") else ""
+        preview = s.get("preview", "")[:22] or "빈 대화"
+        label = f"{date_str}  {preview}"
+        is_active = sid == st.session_state.session_id
+        btn_col, del_col = st.columns([5, 1])
+        with btn_col:
+            if st.button(
+                label,
+                key=f"hist_{sid}",
+                use_container_width=True,
+                type="primary" if is_active else "secondary",
+                help=f"세션 ID: {sid}",
+            ):
+                _save_history()
+                _load_history(sid)
+                st.rerun()
+        with del_col:
+            if st.button("✕", key=f"del_{sid}", help="이 이력 삭제"):
+                _delete_history(sid)
+                if sid == st.session_state.session_id:
+                    st.session_state.session_id = _new_session_id()
+                    st.session_state.messages = []
+                st.session_state.history_list = _list_history()
+                st.rerun()
+
+    st.divider()
+
+    if st.button("🗑️ 현재 대화 초기화", use_container_width=True):
         st.session_state.messages = []
+        st.session_state.suggested_questions = []
         st.rerun()
 
 
@@ -463,6 +562,7 @@ with tab_chat:
                             "sources": sources,
                             "web_sources": web_sources,
                         })
+                        _save_history()
                     else:
                         error_msg = f"오류: {result.get('error', '알 수 없는 오류')}"
                         st.error(error_msg)

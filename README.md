@@ -26,7 +26,7 @@
 
 | 탭 | 기능 |
 |----|------|
-| 💬 채팅 | 문서 기반 RAG 질의응답 + Naver 웹 검색 토글 + 임베딩 기반 추천 질문 |
+| 💬 채팅 | 문서 기반 RAG 질의응답 + Naver 웹 검색 토글 + 임베딩 기반 추천 질문 + 대화 이력 저장/불러오기 |
 | 🎨 포스터 생성 | 주제 입력 → 문서 검색 → dall-e-3 평면 디지털 그래픽 생성 |
 | 📊 PPT 생성 | 주제 + 슬라이드 수 입력 → python-pptx .pptx 파일 다운로드 |
 | 📋 플랜 생성 | 프로젝트 목표 + 채팅 이력 기반 TODO 마크다운 플랜 생성 |
@@ -53,6 +53,7 @@
 | Phase 15 ✅ | python-pptx PPT 생성 (POST /ppt, PPT 탭) |
 | Phase 16 ✅ | Resend API 실제 이메일 발송 (개인 메일 계정 불필요) |
 | Phase 17 ✅ | 임베딩 기반 동적 추천 질문 생성 (GET /suggestions) |
+| Phase 18 ✅ | 대화 메모리 시스템 — 세션 이력 저장/불러오기 + Q&A 임베딩 벡터화 |
 
 ---
 
@@ -160,6 +161,10 @@ docker-compose logs -f frontend
 | POST | `/email/recipients` | 수신자 추천 |
 | POST | `/email/send` | 이메일 실제 발송 |
 | GET | `/suggestions` | 문서 기반 추천 질문 3개 생성 |
+| POST | `/history` | 세션 대화 이력 저장 |
+| GET | `/history` | 저장된 세션 목록 조회 |
+| GET | `/history/{id}` | 특정 세션 이력 로드 |
+| DELETE | `/history/{id}` | 세션 이력 삭제 |
 | GET | `/status` | ChromaDB 청크 수 조회 |
 
 API 문서: `http://localhost:8000/docs`
@@ -182,12 +187,16 @@ ai-assistant/
 │   │   ├── email_recipient_agent.py
 │   │   ├── email_sender_agent.py
 │   │   └── suggestion_agent.py
+│   ├── memory/
+│   │   ├── history_manager.py  # 세션 JSON 저장/로드/목록
+│   │   └── memory_retrieval.py # Q&A 임베딩 저장 및 유사 검색
 │   └── api/                # FastAPI 라우터
 ├── frontend/
 │   └── app.py              # Streamlit UI (TDS 스타일)
 ├── data/
 │   ├── raw/                # 업로드된 원본 문서
 │   ├── trash/              # 삭제된 문서 (휴지통)
+│   ├── history/            # 세션 대화 이력 JSON (.gitignore)
 │   └── vectordb/           # ChromaDB + hash_store.json
 ├── docs/
 │   ├── phases.md

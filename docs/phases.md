@@ -17,6 +17,7 @@
 | Phase 15 | python-pptx PPT 생성 (POST /ppt, PPT 탭) |
 | Phase 16 | Resend API 실제 이메일 발송 (개인 메일 계정 불필요) |
 | Phase 17 | 임베딩 기반 동적 추천 질문 생성 (GET /suggestions, SuggestionAgent) |
+| Phase 18 | 대화 메모리 시스템 — 세션 이력 저장/불러오기 + Q&A 임베딩 벡터화 (conversation_memory 컬렉션, /history 엔드포인트) |
 
 ## Progress
 
@@ -35,3 +36,4 @@
 - [x] Phase 15 — python-pptx PPT 생성, POST /ppt, PPT 탭 ✅ 2026-05-12
 - [x] Phase 16 — Resend API 실제 이메일 발송, email_sender_agent.py 교체 ✅ 2026-05-13
 - [x] Phase 17 — 임베딩 기반 동적 추천 질문, SuggestionAgent, GET /suggestions ✅ 2026-05-13
+- [x] Phase 18 — 대화 메모리 시스템, HistoryManager, MemoryRetrieval, /history 엔드포인트, 사이드바 세션 UI ✅ 2026-05-13

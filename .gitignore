@@ -5,6 +5,7 @@
 data/vectordb/
 data/raw/
 data/trash/
+data/history/
 
 # Python
 __pycache__/

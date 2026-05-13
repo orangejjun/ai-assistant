@@ -21,6 +21,12 @@ from backend.agent.suggestion_agent import SuggestionAgent
 from backend.agent.email_draft_agent import EmailDraftAgent
 from backend.agent.email_recipient_agent import EmailRecipientAgent
 from backend.agent.email_sender_agent import EmailSenderAgent
+from backend.memory.history_manager import (
+    save_session,
+    load_session,
+    list_sessions,
+    delete_session,
+)
 
 router = APIRouter(tags=["assistant"])
 
@@ -44,6 +50,7 @@ class IngestRequest(BaseModel):
 class QueryRequest(BaseModel):
     query: str
     use_web_search: bool = False
+    session_id: str = ""
 
 
 class DeleteRequest(BaseModel):
@@ -62,6 +69,11 @@ class PptRequest(BaseModel):
 class PlanRequest(BaseModel):
     goal: str
     chat_history: List[Dict] = []
+
+
+class SaveHistoryRequest(BaseModel):
+    session_id: str
+    messages: List[Dict]
 
 
 class EmailDraftRequest(BaseModel):
@@ -198,7 +210,7 @@ def query(request: QueryRequest) -> ApiResponse:
             raise ValueError("질문 내용이 비어 있습니다.")
 
         agent = MainAgent()
-        result = agent.query(request.query, use_web_search=request.use_web_search)
+        result = agent.query(request.query, use_web_search=request.use_web_search, session_id=request.session_id)
 
         if not result["success"]:
             raise HTTPException(
@@ -324,6 +336,50 @@ async def create_plan(request: PlanRequest) -> ApiResponse:
         raise
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/history", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def save_history(request: SaveHistoryRequest) -> ApiResponse:
+    """세션 대화 이력을 data/history/{session_id}.json 에 저장한다."""
+    try:
+        await asyncio.to_thread(save_session, request.session_id, request.messages)
+        return ApiResponse(success=True, data={"session_id": request.session_id})
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/history", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def get_history_list() -> ApiResponse:
+    """저장된 세션 목록을 최신순으로 반환한다."""
+    try:
+        sessions = await asyncio.to_thread(list_sessions)
+        return ApiResponse(success=True, data={"sessions": sessions})
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/history/{session_id}", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def get_history(session_id: str) -> ApiResponse:
+    """특정 세션의 대화 이력을 반환한다."""
+    try:
+        data = await asyncio.to_thread(load_session, session_id)
+        if not data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
+        return ApiResponse(success=True, data=data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.delete("/history/{session_id}", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def remove_history(session_id: str) -> ApiResponse:
+    """특정 세션 파일을 삭제한다."""
+    try:
+        deleted = await asyncio.to_thread(delete_session, session_id)
+        return ApiResponse(success=True, data={"session_id": session_id, "deleted": deleted})
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

@@ -59,6 +59,9 @@
 - 임베딩은 **영어 번역본**으로 생성, ChromaDB에는 **원본** 저장 (Cross-lingual Retrieval)
 - MD5 해시로 중복 인덱싱 방지 (`hash_store.json`)
 - 번역: 20개 배치 + `ThreadPoolExecutor(max_workers=10)` 병렬 처리
+- 대화 메모리: `data/history/{session_id}.json` + ChromaDB `conversation_memory` 컬렉션 (Phase 18)
+  - 유사도 임계값: distance < 0.6 (너무 먼 과거 대화 자동 제외)
+  - 메모리 저장 실패는 무시 (답변 흐름 방해하지 않음)
 
 ---
 

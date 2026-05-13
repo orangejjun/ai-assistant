@@ -37,6 +37,7 @@ class AnswerAgent:
         query: str = payload.get("query", "")
         chunks: List[Dict] = payload.get("chunks", [])
         web_results: List[Dict] = payload.get("web_results", [])
+        memory_context: List[Dict] = payload.get("memory_context", [])
 
         if not query:
             raise ValueError("payload에 'query' 키가 필요합니다.")
@@ -45,12 +46,19 @@ class AnswerAgent:
             return {"answer": _NOT_FOUND, "sources": []}
 
         context = self._build_context(chunks, web_results)
-        system_prompt = _SYSTEM_PROMPT_WITH_WEB if web_results else _SYSTEM_PROMPT
+        base_prompt = _SYSTEM_PROMPT_WITH_WEB if web_results else _SYSTEM_PROMPT
+        system_prompt = self._build_system_prompt(base_prompt, memory_context)
         answer = self._call_gpt(query, context, system_prompt)
         doc_sources = list(dict.fromkeys(c["source_file"] for c in chunks))
         web_sources = [r["link"] for r in web_results if r.get("link")]
 
         return {"answer": answer, "sources": doc_sources, "web_sources": web_sources}
+
+    def _build_system_prompt(self, base_prompt: str, memory_context: List[Dict]) -> str:
+        if not memory_context:
+            return base_prompt
+        snippets = "\n".join(f"- {m['document'][:300]}" for m in memory_context)
+        return f"{base_prompt}\n\n[과거 유사 대화 참고]\n{snippets}"
 
     def _build_context(self, chunks: List[Dict], web_results: List[Dict]) -> str:
         parts = []

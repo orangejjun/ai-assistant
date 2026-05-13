@@ -1,5 +1,6 @@
 import os
 import random
+import uuid
 from typing import List, Dict
 
 import chromadb
@@ -98,6 +99,58 @@ def get_random_chunks(k: int = 5) -> List[Dict]:
     return [
         {"chunk_text": doc, "source_file": meta.get("source_file", "")}
         for doc, meta in zip(result["documents"], result["metadatas"])
+    ]
+
+
+def get_memory_collection() -> chromadb.Collection:
+    """대화 메모리 전용 ChromaDB 컬렉션을 반환한다."""
+    client = _get_client()
+    return client.get_or_create_collection(
+        name="conversation_memory",
+        metadata={"hnsw:space": "cosine"},
+    )
+
+
+def save_memory_pair(
+    session_id: str,
+    query: str,
+    answer: str,
+    embedding: List[float],
+) -> None:
+    """Q&A 쌍을 conversation_memory 컬렉션에 upsert한다."""
+    collection = get_memory_collection()
+    doc_id = f"{session_id}_{uuid.uuid4().hex[:8]}"
+    collection.upsert(
+        ids=[doc_id],
+        documents=[f"Q: {query}\nA: {answer}"],
+        embeddings=[embedding],
+        metadatas=[{"session_id": session_id, "query": query[:200]}],
+    )
+
+
+def search_memory(embedding: List[float], k: int = 3) -> List[Dict]:
+    """임베딩 벡터로 과거 유사 Q&A를 검색한다. distance < 0.6 인 결과만 반환."""
+    collection = get_memory_collection()
+    total = collection.count()
+    if total == 0:
+        return []
+    results = collection.query(
+        query_embeddings=[embedding],
+        n_results=min(k, total),
+        include=["documents", "metadatas", "distances"],
+    )
+    return [
+        {
+            "document": doc,
+            "session_id": meta.get("session_id", ""),
+            "distance": dist,
+        }
+        for doc, meta, dist in zip(
+            results["documents"][0],
+            results["metadatas"][0],
+            results["distances"][0],
+        )
+        if dist < 0.6
     ]
 
 
