@@ -21,18 +21,26 @@ section[data-testid="stSidebar"] { min-width:300px !important; max-width:300px !
 [data-testid="stSidebarUserContent"] { padding: 16px 12px 24px !important; }
 
 /* ── 사이드바 버튼 기본: flat list item ── */
-[data-testid="stSidebar"] [data-testid="stButton"] > button { text-align:left !important; justify-content:flex-start !important; background:transparent !important; border:none !important; border-radius:8px !important; padding:8px 10px !important; font-size:13px !important; font-weight:500 !important; color:#333D4B !important; min-height:36px !important; width:100% !important; transition:background 120ms !important; }
+[data-testid="stSidebar"] [data-testid="stButton"] > button { text-align:left !important; justify-content:flex-start !important; align-items:flex-start !important; background:transparent !important; border:none !important; border-radius:8px !important; padding:8px 10px !important; font-size:13px !important; font-weight:500 !important; color:#333D4B !important; min-height:36px !important; transition:background 120ms !important; }
 [data-testid="stSidebar"] [data-testid="stButton"] > button:hover { background:#F2F4F6 !important; }
 [data-testid="stSidebar"] [data-testid="stButton"] > button[kind="primary"] { background:#3182F6 !important; color:#FFFFFF !important; font-weight:600 !important; font-size:13px !important; }
 [data-testid="stSidebar"] [data-testid="stButton"] > button[kind="primary"]:hover { background:#1B6EE8 !important; }
 
 /* ── 세션 카드 버튼: 두 줄 텍스트 스타일 ── */
-[data-testid="stSidebar"] [data-testid="stButton"] > button p:first-child { font-size:13px !important; font-weight:500 !important; color:#191F28 !important; line-height:1.4 !important; margin:0 !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important; }
-[data-testid="stSidebar"] [data-testid="stButton"] > button p + p { font-size:11px !important; font-weight:400 !important; color:#B0B8C1 !important; margin:1px 0 0 !important; }
+[data-testid="stSidebar"] [data-testid="stButton"] > button > div { text-align:left !important; width:100% !important; }
+[data-testid="stSidebar"] [data-testid="stButton"] > button p:first-child { font-size:13px !important; font-weight:500 !important; color:#191F28 !important; line-height:1.4 !important; margin:0 !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important; text-align:left !important; }
+[data-testid="stSidebar"] [data-testid="stButton"] > button p + p { font-size:11px !important; font-weight:400 !important; color:#B0B8C1 !important; margin:1px 0 0 !important; text-align:left !important; }
 
-/* ── 팝오버 트리거: 아이콘 버튼 ── */
-[data-testid="stSidebar"] [data-testid="stPopoverTrigger"] > button { padding:4px 8px !important; font-size:16px !important; color:#C2CAD4 !important; min-height:28px !important; font-weight:400 !important; text-align:center !important; justify-content:center !important; }
-[data-testid="stSidebar"] [data-testid="stPopoverTrigger"] > button:hover { color:#6B7684 !important; background:#F2F4F6 !important; }
+/* ── 세션 스크롤 컨테이너 내 카드: 아주 연한 회색 배경 ── */
+[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stBaseButton-secondary"] { background:#F7F8FA !important; }
+[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stBaseButton-secondary"]:hover { background:#ECEDF0 !important; }
+
+/* ── 세션 카드 아이콘 버튼(2·3번째 열): 기본 숨김 → 행 호버 시 노출 ── */
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]:has(> div:nth-child(3)) > div:nth-child(2) [data-testid="stButton"] > button,
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]:has(> div:nth-child(3)) > div:nth-child(3) [data-testid="stButton"] > button { opacity:0 !important; pointer-events:none !important; transition:opacity 140ms ease !important; padding:4px 6px !important; min-height:28px !important; font-size:15px !important; background:transparent !important; border:none !important; }
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]:has(> div:nth-child(3)):hover > div:nth-child(2) [data-testid="stButton"] > button,
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]:has(> div:nth-child(3)):hover > div:nth-child(3) [data-testid="stButton"] > button { opacity:1 !important; pointer-events:auto !important; }
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"]:has(> div:nth-child(3)):hover > div:nth-child(3) [data-testid="stButton"] > button:hover { color:#E53E3E !important; background:#FFF5F5 !important; }
 
 /* ── 세션 스크롤 컨테이너: 테두리 제거 ── */
 [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] { border:none !important; padding:0 !important; }
@@ -107,6 +115,10 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = _uuid.uuid4().hex[:12]
 if "history_list" not in st.session_state:
     st.session_state.history_list = []
+if "poster_history" not in st.session_state:
+    st.session_state.poster_history = []
+if "ppt_history" not in st.session_state:
+    st.session_state.ppt_history = []
 
 
 # ── 헬퍼 ─────────────────────────────────────────────────────────────────────
@@ -132,9 +144,19 @@ def _run_ingest(folder_path: str) -> dict:
 
 
 def _run_query(query: str, use_web_search: bool = False) -> dict:
+    # 현재 질문(마지막 user 메시지) 직전까지의 이력만 전달, UI 전용 필드 제거
+    history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in st.session_state.messages[:-1]
+    ]
     res = requests.post(
         f"{API_BASE}/query",
-        json={"query": query, "use_web_search": use_web_search, "session_id": st.session_state.session_id},
+        json={
+            "query": query,
+            "use_web_search": use_web_search,
+            "session_id": st.session_state.session_id,
+            "chat_history": history[-20:],
+        },
         timeout=60,
     )
     res.raise_for_status()
@@ -496,18 +518,12 @@ with st.sidebar:
         st.session_state.history_list = _list_history()
         st.rerun()
 
-    # ── 대화 이력 헤더 ──
-    col_hist, col_refresh = st.columns([5, 1])
-    col_hist.markdown(
-        '<p style="font-size:11px;color:#B0B8C1;margin:4px 0 0;">대화 이력</p>',
+    # ── 대화 이력 헤더 (자동 새로고침) ──
+    st.markdown(
+        '<p style="font-size:11px;color:#B0B8C1;margin:12px 0 4px 2px;">대화 이력</p>',
         unsafe_allow_html=True,
     )
-    if col_refresh.button("↺", help="목록 새로고침", use_container_width=True):
-        st.session_state.history_list = _list_history()
-        st.rerun()
-
-    if not st.session_state.history_list:
-        st.session_state.history_list = _list_history()
+    st.session_state.history_list = _list_history()
 
     # ── 세션 카드 목록 (스크롤 컨테이너) ──
     with st.container(height=420, border=False):
@@ -549,7 +565,7 @@ with st.sidebar:
                     st.session_state[f"editing_{sid}"] = False
                     st.rerun()
             else:
-                c_title, c_pop = st.columns([5, 1])
+                c_title, c_edit, c_del = st.columns([5, 1, 1])
                 with c_title:
                     sub_label = f"{date_str} · {msg_count // 2}회" if msg_count else date_str
                     if st.button(
@@ -561,19 +577,19 @@ with st.sidebar:
                         _load_history(sid)
                         st.session_state.history_list = _list_history()
                         st.rerun()
-                with c_pop:
-                    with st.popover("⋯", use_container_width=True):
-                        if st.button("✏️ 편집", key=f"edit_{sid}", use_container_width=True):
-                            st.session_state[f"editing_{sid}"] = True
-                            st.rerun()
-                        if st.button("🗑️ 삭제", key=f"del_{sid}", use_container_width=True):
-                            _delete_history(sid)
-                            if sid == st.session_state.session_id:
-                                st.session_state.session_id = _new_session_id()
-                                st.session_state.messages = []
-                                st.session_state.suggested_questions = []
-                            st.session_state.history_list = _list_history()
-                            st.rerun()
+                with c_edit:
+                    if st.button("✏", key=f"edit_{sid}", use_container_width=True):
+                        st.session_state[f"editing_{sid}"] = True
+                        st.rerun()
+                with c_del:
+                    if st.button("🗑", key=f"del_{sid}", use_container_width=True):
+                        _delete_history(sid)
+                        if sid == st.session_state.session_id:
+                            st.session_state.session_id = _new_session_id()
+                            st.session_state.messages = []
+                            st.session_state.suggested_questions = []
+                        st.session_state.history_list = _list_history()
+                        st.rerun()
 
 
 # ── 메인 탭 ──────────────────────────────────────────────────────────────────
@@ -715,18 +731,13 @@ with tab_poster:
                     d = result["data"]
                     import base64
                     img_bytes = base64.b64decode(d["image_b64"])
-                    st.image(img_bytes, caption=d["topic"], use_container_width=True)
-                    st.download_button(
-                        "⬇️ 포스터 다운로드",
-                        data=img_bytes,
-                        file_name=f"poster_{topic[:20].replace(' ', '_')}_{selected_size}.png",
-                        mime="image/png",
-                        use_container_width=True,
-                    )
-                    if d.get("sources"):
-                        with st.expander("📎 참고 문서"):
-                            for src in d["sources"]:
-                                st.caption(f"📄 {src}")
+                    st.session_state.poster_history.append({
+                        "img_bytes": img_bytes,
+                        "topic": topic,
+                        "size": selected_size,
+                        "sources": d.get("sources", []),
+                    })
+                    st.rerun()
                 else:
                     st.error(f"오류: {result.get('error')}")
             except requests.exceptions.ConnectionError:
@@ -736,6 +747,26 @@ with tab_poster:
                 st.error(f"오류: {detail}")
             except Exception as e:
                 st.error(f"알 수 없는 오류: {e}")
+
+    # ── 생성된 포스터 히스토리 ──
+    if st.session_state.poster_history:
+        st.divider()
+        for idx, item in enumerate(reversed(st.session_state.poster_history)):
+            st.markdown(f"**🎨 {item['topic']}** <span style='font-size:12px;color:#B0B8C1;'>({item['size']})</span>", unsafe_allow_html=True)
+            st.image(item["img_bytes"], use_container_width=True)
+            st.download_button(
+                "⬇️ 포스터 다운로드",
+                data=item["img_bytes"],
+                file_name=f"poster_{item['topic'][:20].replace(' ', '_')}_{item['size']}.png",
+                mime="image/png",
+                use_container_width=True,
+                key=f"dl_poster_{idx}",
+            )
+            if item.get("sources"):
+                with st.expander("📎 참고 문서"):
+                    for src in item["sources"]:
+                        st.caption(f"📄 {src}")
+            st.divider()
 
 
 # ── 탭 3: PPT 생성 ────────────────────────────────────────────────────────────
@@ -757,23 +788,14 @@ with tab_ppt:
                     import base64 as _b64
                     d = result["data"]
                     ppt_bytes = _b64.b64decode(d["presentation_b64"])
-                    st.download_button(
-                        "⬇️ PPT 다운로드 (.pptx)",
-                        data=ppt_bytes,
-                        file_name=f"ppt_{ppt_topic[:20].replace(' ', '_')}.pptx",
-                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        use_container_width=True,
-                    )
-                    with st.expander(f"📑 슬라이드 구성 ({d['slide_count']}장)", expanded=True):
-                        for i, slide in enumerate(d.get("slides", []), 1):
-                            label = "🎯 타이틀" if slide["type"] == "title" else ("✅ 요약" if slide["type"] == "summary" else f"슬라이드 {i}")
-                            st.markdown(f"**{label}** — {slide.get('title', '')}")
-                            for b in slide.get("bullets", []):
-                                st.caption(f"  • {b}")
-                    if d.get("sources"):
-                        with st.expander("📎 참고 문서"):
-                            for src in d["sources"]:
-                                st.caption(f"📄 {src}")
+                    st.session_state.ppt_history.append({
+                        "ppt_bytes": ppt_bytes,
+                        "topic": ppt_topic,
+                        "slide_count": d["slide_count"],
+                        "slides": d.get("slides", []),
+                        "sources": d.get("sources", []),
+                    })
+                    st.rerun()
                 else:
                     st.error(f"오류: {result.get('error')}")
             except requests.exceptions.ConnectionError:
@@ -783,6 +805,31 @@ with tab_ppt:
                 st.error(f"오류: {detail}")
             except Exception as e:
                 st.error(f"알 수 없는 오류: {e}")
+
+    # ── 생성된 PPT 히스토리 ──
+    if st.session_state.ppt_history:
+        st.divider()
+        for idx, item in enumerate(reversed(st.session_state.ppt_history)):
+            st.markdown(f"**📊 {item['topic']}** <span style='font-size:12px;color:#B0B8C1;'>({item['slide_count']}장)</span>", unsafe_allow_html=True)
+            st.download_button(
+                "⬇️ PPT 다운로드 (.pptx)",
+                data=item["ppt_bytes"],
+                file_name=f"ppt_{item['topic'][:20].replace(' ', '_')}.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                use_container_width=True,
+                key=f"dl_ppt_{idx}",
+            )
+            with st.expander(f"📑 슬라이드 구성 ({item['slide_count']}장)"):
+                for i, slide in enumerate(item["slides"], 1):
+                    label = "🎯 타이틀" if slide["type"] == "title" else ("✅ 요약" if slide["type"] == "summary" else f"슬라이드 {i}")
+                    st.markdown(f"**{label}** — {slide.get('title', '')}")
+                    for b in slide.get("bullets", []):
+                        st.caption(f"  • {b}")
+            if item.get("sources"):
+                with st.expander("📎 참고 문서"):
+                    for src in item["sources"]:
+                        st.caption(f"📄 {src}")
+            st.divider()
 
 
 # ── 탭 4: 플랜 생성 ───────────────────────────────────────────────────────────

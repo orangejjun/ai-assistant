@@ -21,6 +21,7 @@
 | Phase 19 | 사이드바 리팩토링 — 파일 관리 기능을 @st.dialog 모달로 분리, 사이드바는 대화 이력 전용으로 정리 |
 | Phase 20 | 대화 이력 UI 개선 — GPT 자동 제목 생성, 인라인 제목 편집, 삭제, 활성 세션 강조 (PATCH /history/{id}) |
 | Phase 21 | 포스터 생성 고도화 — gpt-image-1 교체, K-beauty 특화 프롬프트, 크기 3종 선택 (세로/정방/가로) |
+| Phase 22 | 멀티턴 대화 컨텍스트 — chat_history를 QueryRequest에 추가, answer_agent 멀티턴 GPT 호출 |
 
 ## Progress
 
@@ -43,3 +44,4 @@
 - [x] Phase 19 — 사이드바 리팩토링, 파일 관리 @st.dialog 모달 분리 ✅ 2026-05-13
 - [x] Phase 20 — 대화 이력 UI 개선, GPT 자동 제목, 인라인 편집, PATCH /history/{id} ✅ 2026-05-13
 - [x] Phase 21 — gpt-image-1 교체, K-beauty 포스터 프롬프트, 크기 3종 선택 ✅ 2026-05-13
+- [x] Phase 22 — 멀티턴 대화 컨텍스트, chat_history 전달, answer_agent 멀티턴 GPT 호출 ✅ 2026-05-13

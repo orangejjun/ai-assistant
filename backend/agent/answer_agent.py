@@ -38,6 +38,7 @@ class AnswerAgent:
         chunks: List[Dict] = payload.get("chunks", [])
         web_results: List[Dict] = payload.get("web_results", [])
         memory_context: List[Dict] = payload.get("memory_context", [])
+        chat_history: List[Dict] = payload.get("chat_history", [])
 
         if not query:
             raise ValueError("payload에 'query' 키가 필요합니다.")
@@ -48,7 +49,7 @@ class AnswerAgent:
         context = self._build_context(chunks, web_results)
         base_prompt = _SYSTEM_PROMPT_WITH_WEB if web_results else _SYSTEM_PROMPT
         system_prompt = self._build_system_prompt(base_prompt, memory_context)
-        answer = self._call_gpt(query, context, system_prompt)
+        answer = self._call_gpt(query, context, system_prompt, chat_history)
         doc_sources = list(dict.fromkeys(c["source_file"] for c in chunks))
         web_sources = [r["link"] for r in web_results if r.get("link")]
 
@@ -73,15 +74,21 @@ class AnswerAgent:
             )
         return "\n\n---\n\n".join(parts)
 
-    def _call_gpt(self, query: str, context: str, system_prompt: str) -> str:
+    def _call_gpt(self, query: str, context: str, system_prompt: str,
+                  chat_history: List[Dict] = []) -> str:
+        messages: List[Dict] = [{"role": "system", "content": system_prompt}]
+
+        for msg in chat_history:
+            if msg.get("role") in ("user", "assistant") and msg.get("content"):
+                messages.append({"role": msg["role"], "content": msg["content"]})
+
+        messages.append({"role": "user", "content": f"[참고 문서]\n{context}\n\n[질문]\n{query}"})
+
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = client.chat.completions.create(
             model=GPT_MODEL,
             max_tokens=2048,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"[참고 문서]\n{context}\n\n[질문]\n{query}"},
-            ],
+            messages=messages,
         )
         return response.choices[0].message.content
 

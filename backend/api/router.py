@@ -52,6 +52,7 @@ class QueryRequest(BaseModel):
     query: str
     use_web_search: bool = False
     session_id: str = ""
+    chat_history: List[Dict] = []
 
 
 class DeleteRequest(BaseModel):
@@ -216,7 +217,12 @@ def query(request: QueryRequest) -> ApiResponse:
             raise ValueError("질문 내용이 비어 있습니다.")
 
         agent = MainAgent()
-        result = agent.query(request.query, use_web_search=request.use_web_search, session_id=request.session_id)
+        result = agent.query(
+            request.query,
+            use_web_search=request.use_web_search,
+            session_id=request.session_id,
+            chat_history=request.chat_history,
+        )
 
         if not result["success"]:
             raise HTTPException(

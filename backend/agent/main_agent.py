@@ -30,7 +30,7 @@ class MainAgent:
             }
         return agent.run(payload)
 
-    def query(self, user_query: str, use_web_search: bool = False, session_id: str = "") -> dict:
+    def query(self, user_query: str, use_web_search: bool = False, session_id: str = "", chat_history: list = []) -> dict:
         """
         사용자 질의를 받아 Retrieval → Answer 순서로 처리 후 결과를 반환한다.
 
@@ -69,6 +69,7 @@ class MainAgent:
             "chunks": chunks,
             "web_results": web_results,
             "memory_context": memory_context,
+            "chat_history": chat_history,
         })
         if not answer_result["success"]:
             return {

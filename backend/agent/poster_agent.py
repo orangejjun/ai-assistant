@@ -22,9 +22,12 @@ _PROMPT_SYSTEM = (
     "   decorative botanical or geometric accents, ample white space. "
     "4) Typography — elegant sans-serif or thin serif typefaces implied in the design. "
     "5) Forbidden — no shadows, no photo-realism, no physical paper, no room/environment, "
-    "   no binder clips, no mockup frames. Content must fill 100% of the canvas edge-to-edge. "
+    "   no binder clips, no mockup frames. "
+    "6) Safe zone — background color/pattern fills 100% of the canvas edge-to-edge, "
+    "   but ALL text, headlines, and key graphic elements must stay at least 80px away from every edge. "
+    "   Never place text near the border; center-weighted layout is preferred. "
     "Write the prompt in English. Start with: "
-    "'Flat 2D digital K-beauty brand poster, edge-to-edge design, no mockup, no shadows,'"
+    "'Flat 2D digital K-beauty brand poster, full-bleed background, safe text margins,'"
 )
 
 
@@ -88,16 +91,17 @@ class PosterAgent:
 
     def _generate_image(self, prompt: str, size: str = "1024x1536") -> str:
         enforced = (
-            "Flat 2D digital K-beauty brand poster, edge-to-edge design, no mockup, no shadows. "
-            "Pure flat background filling 100% of the canvas edge-to-edge. "
+            "Flat 2D digital K-beauty brand poster, full-bleed background, safe text margins, no mockup, no shadows. "
+            "Background color or pattern fills 100% of the canvas edge-to-edge. "
+            "ALL text, headlines, and graphic elements must be placed at least 80px inward from every edge — "
+            "never touching or exceeding the canvas boundary. Center-weighted layout. "
             "NO shadows, NO photo-realistic rendering, NO 3D perspective, "
             "NO paper texture, NO binder clips, NO wall, NO room, NO mockup frame, "
-            "NO border, NO margins, NO surrounding environment, NO physical objects. "
+            "NO surrounding environment, NO physical objects. "
             "Premium Korean beauty brand aesthetic: soft sophisticated color palette, "
             "elegant typography layout, botanical or geometric decorative accents, ample white space. "
-            "Content must touch all four edges of the image. "
             + prompt
-            + " Completely flat 2D K-beauty digital graphic. Pure premium cosmetics brand design."
+            + " Completely flat 2D K-beauty digital graphic. All text fully visible within safe margins."
         )
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = client.images.generate(
