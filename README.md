@@ -14,7 +14,7 @@
 | 임베딩 | OpenAI `text-embedding-3-small` |
 | 벡터 DB | ChromaDB (로컬) |
 | LLM | OpenAI `gpt-4o-mini` |
-| 이미지 생성 | OpenAI `dall-e-3` |
+| 이미지 생성 | OpenAI `gpt-image-1` |
 | PPT 생성 | `python-pptx` |
 | 웹 검색 | Naver Search API |
 | 이메일 발송 | Resend API |

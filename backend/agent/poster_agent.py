@@ -7,8 +7,8 @@ from openai import OpenAI
 from backend.retrieval.retrieval_agent import RetrievalAgent
 
 _GPT_MODEL = "gpt-4o-mini"
-_IMAGE_MODEL = "dall-e-3"
-_IMAGE_SIZE = "1024x1792"
+_IMAGE_MODEL = "gpt-image-1"
+_IMAGE_SIZE = "1024x1536"
 
 _PROMPT_SYSTEM = (
     "You are a professional graphic designer creating flat 2D digital infographics. "
@@ -21,7 +21,7 @@ _PROMPT_SYSTEM = (
 
 
 class PosterAgent:
-    """문서 청크를 기반으로 gpt-image-2 포스터 이미지를 생성한다."""
+    """문서 청크를 기반으로 gpt-image-1 포스터 이미지를 생성한다."""
 
     def run(self, payload: dict) -> dict:
         try:
@@ -95,9 +95,8 @@ class PosterAgent:
             model=_IMAGE_MODEL,
             prompt=enforced,
             size=_IMAGE_SIZE,
-            quality="hd",
+            quality="high",
             n=1,
-            response_format="b64_json",
         )
         return response.data[0].b64_json
 
