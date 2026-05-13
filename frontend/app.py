@@ -10,18 +10,34 @@ st.set_page_config(page_title="AI 문서 비서", page_icon="📚", layout="wide
 
 st.markdown("""<style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+/* ── 전역 ── */
 html, body, [class*="css"], .stApp { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif !important; background: #F9FAFB !important; color: #191F28 !important; }
 #MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"], .stDeployButton, [data-testid="stHeader"] { display:none !important; }
+
+/* ── 사이드바 기본 ── */
 [data-testid="stSidebar"] { background: #FFFFFF !important; border-right: 1px solid #E5E8EB !important; }
-section[data-testid="stSidebar"] { min-width:260px !important; max-width:260px !important; transform:none !important; visibility:visible !important; }
-[data-testid="stSidebarUserContent"] { padding: 24px 16px !important; }
-[data-testid="stSidebar"] .stTitle, [data-testid="stSidebar"] h1 { font-size:16px !important; font-weight:700 !important; color:#191F28 !important; }
-[data-testid="stSidebar"] [data-testid="stButton"] > button { background: #F2F4F6 !important; border: none !important; color: #191F28 !important; border-radius: 10px !important; font-weight: 600 !important; font-size: 14px !important; padding: 10px 16px !important; transition: background 150ms !important; }
-[data-testid="stSidebar"] [data-testid="stButton"] > button:hover { background: #E5E8EB !important; }
-[data-testid="stSidebar"] [data-testid="stButton"] > button[kind="primary"] { background: #3182F6 !important; color: #FFFFFF !important; }
-[data-testid="stSidebar"] [data-testid="stButton"] > button[kind="primary"]:hover { background: #1B6EE8 !important; }
-[data-testid="stSidebar"] [data-testid="stMetricValue"] { font-size: 24px !important; font-weight: 700 !important; color: #3182F6 !important; }
-[data-testid="stSidebar"] [data-testid="stMetricLabel"] { font-size: 12px !important; color: #6B7684 !important; }
+section[data-testid="stSidebar"] { min-width:300px !important; max-width:300px !important; transform:none !important; visibility:visible !important; }
+[data-testid="stSidebarUserContent"] { padding: 16px 12px 24px !important; }
+
+/* ── 사이드바 버튼 기본: flat list item ── */
+[data-testid="stSidebar"] [data-testid="stButton"] > button { text-align:left !important; justify-content:flex-start !important; background:transparent !important; border:none !important; border-radius:8px !important; padding:8px 10px !important; font-size:13px !important; font-weight:500 !important; color:#333D4B !important; min-height:36px !important; width:100% !important; transition:background 120ms !important; }
+[data-testid="stSidebar"] [data-testid="stButton"] > button:hover { background:#F2F4F6 !important; }
+[data-testid="stSidebar"] [data-testid="stButton"] > button[kind="primary"] { background:#3182F6 !important; color:#FFFFFF !important; font-weight:600 !important; font-size:13px !important; }
+[data-testid="stSidebar"] [data-testid="stButton"] > button[kind="primary"]:hover { background:#1B6EE8 !important; }
+
+/* ── 세션 카드 버튼: 두 줄 텍스트 스타일 ── */
+[data-testid="stSidebar"] [data-testid="stButton"] > button p:first-child { font-size:13px !important; font-weight:500 !important; color:#191F28 !important; line-height:1.4 !important; margin:0 !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important; }
+[data-testid="stSidebar"] [data-testid="stButton"] > button p + p { font-size:11px !important; font-weight:400 !important; color:#B0B8C1 !important; margin:1px 0 0 !important; }
+
+/* ── 팝오버 트리거: 아이콘 버튼 ── */
+[data-testid="stSidebar"] [data-testid="stPopoverTrigger"] > button { padding:4px 8px !important; font-size:16px !important; color:#C2CAD4 !important; min-height:28px !important; font-weight:400 !important; text-align:center !important; justify-content:center !important; }
+[data-testid="stSidebar"] [data-testid="stPopoverTrigger"] > button:hover { color:#6B7684 !important; background:#F2F4F6 !important; }
+
+/* ── 세션 스크롤 컨테이너: 테두리 제거 ── */
+[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] { border:none !important; padding:0 !important; }
+
+/* ── 메인 영역 ── */
 [data-testid="stMainBlockContainer"] { background: #F9FAFB !important; }
 .block-container { padding: 2rem 2.5rem !important; max-width: 100% !important; }
 h1 { font-size: 24px !important; font-weight: 800 !important; color: #191F28 !important; letter-spacing: -0.5px !important; }
@@ -68,10 +84,6 @@ hr { border-color: #E5E8EB !important; }
 ::-webkit-scrollbar-thumb:hover { background: #B0B8C1; }
 [data-testid="stMetric"] { background: #FFFFFF !important; border: 1px solid #E5E8EB !important; border-radius: 12px !important; padding: 16px !important; }
 [data-testid="stDownloadButton"] > button { background: #F2F4F6 !important; border: 1px solid #E5E8EB !important; color: #191F28 !important; border-radius: 10px !important; }
-/* 사이드바 세션 버튼 - 카드 스타일 */
-[data-testid="stSidebar"] [data-testid="stButton"] > button { text-align: left !important; justify-content: flex-start !important; }
-[data-testid="stSidebar"] .session-icon [data-testid="stButton"] > button { background: transparent !important; border: none !important; padding: 4px 6px !important; color: #B0B8C1 !important; font-size: 11px !important; font-weight: 400 !important; min-height: 28px !important; }
-[data-testid="stSidebar"] .session-icon [data-testid="stButton"] > button:hover { background: #F2F4F6 !important; color: #6B7684 !important; }
 </style>""", unsafe_allow_html=True)
 
 # ── 세션 상태 초기화 ─────────────────────────────────────────────────────────
@@ -444,26 +456,38 @@ def _render_email_steps(current: int) -> None:
 # ── 사이드바 ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("AI 문서 비서")
+    # ── 헤더: 앱 이름 + 파일 관리 버튼 ──
+    col_logo, col_file = st.columns([4, 1])
+    with col_logo:
+        st.markdown(
+            '<p style="font-size:15px;font-weight:700;color:#191F28;margin:4px 0 0;">📚 AI 문서 비서</p>',
+            unsafe_allow_html=True,
+        )
+    with col_file:
+        if st.button("📁", help="파일 관리", use_container_width=True):
+            _file_manager_dialog()
 
+    # ── 상태 카드 ──
     status = _get_status()
     if status:
-        st.metric("인덱싱된 청크", status.get("total_chunks", 0))
+        chunk_count = status.get("total_chunks", 0)
+        st.markdown(
+            f'<div style="background:#F2F4F6;border-radius:10px;padding:10px 14px;margin:8px 0;">'
+            f'<span style="font-size:11px;color:#6B7684;">인덱싱된 청크</span><br>'
+            f'<span style="font-size:20px;font-weight:700;color:#191F28;">{chunk_count:,}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
     else:
-        st.warning("⚠️ 백엔드 연결 불가")
+        st.markdown(
+            '<div style="background:#FFF8E1;border:1px solid #FFD54F;border-radius:10px;'
+            'padding:10px 14px;margin:8px 0;">'
+            '<span style="font-size:12px;color:#B45309;">⚠️ 백엔드 연결 불가</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
-    if st.button("📁 파일 관리", use_container_width=True, type="primary"):
-        _file_manager_dialog()
-
-    st.divider()
-
-    # ── 대화 이력 헤더 ──
-    col_title, col_ref = st.columns([4, 1])
-    col_title.markdown("**대화 이력**")
-    if col_ref.button("↺", help="목록 새로고침", use_container_width=True):
-        st.session_state.history_list = _list_history()
-        st.rerun()
-
+    # ── 새 대화 버튼 ──
     if st.button("＋ 새 대화 시작", use_container_width=True, type="primary"):
         _save_history()
         st.session_state.session_id = _new_session_id()
@@ -472,86 +496,84 @@ with st.sidebar:
         st.session_state.history_list = _list_history()
         st.rerun()
 
+    # ── 대화 이력 헤더 ──
+    col_hist, col_refresh = st.columns([5, 1])
+    col_hist.markdown(
+        '<p style="font-size:11px;color:#B0B8C1;margin:4px 0 0;">대화 이력</p>',
+        unsafe_allow_html=True,
+    )
+    if col_refresh.button("↺", help="목록 새로고침", use_container_width=True):
+        st.session_state.history_list = _list_history()
+        st.rerun()
+
     if not st.session_state.history_list:
         st.session_state.history_list = _list_history()
 
-    # ── 세션 카드 목록 ──
-    for s in st.session_state.history_list[:15]:
-        sid = s["session_id"]
-        title = s.get("title") or "새 대화"
-        date_str = s["updated_at"][:10] if s.get("updated_at") else ""
-        msg_count = s.get("message_count", 0)
-        is_active = sid == st.session_state.session_id
-        is_editing = st.session_state.get(f"editing_{sid}", False)
+    # ── 세션 카드 목록 (스크롤 컨테이너) ──
+    with st.container(height=420, border=False):
+        for s in st.session_state.history_list[:30]:
+            sid = s["session_id"]
+            title = s.get("title") or "새 대화"
+            date_str = s["updated_at"][:10] if s.get("updated_at") else ""
+            msg_count = s.get("message_count", 0)
+            is_active = sid == st.session_state.session_id
+            is_editing = st.session_state.get(f"editing_{sid}", False)
 
-        # 활성 세션 시각적 구분선
-        if is_active:
+            # 활성 카드 배경 하이라이트용 CSS 마커
+            marker_id = f"sc_{sid}"
+            active_css = (
+                f"<style>div.stMarkdown:has(span#{marker_id})"
+                f" + div[data-testid='stHorizontalBlock']"
+                f"{{background:#EFF6FF !important;border-radius:8px !important;}}</style>"
+            ) if is_active else ""
             st.markdown(
-                '<div style="height:2px;background:linear-gradient(90deg,#3182F6,transparent);'
-                'border-radius:1px;margin:2px 0 0;"></div>',
+                f'{active_css}<span id="{marker_id}" style="display:none;"></span>',
                 unsafe_allow_html=True,
             )
 
-        if is_editing:
-            new_title = st.text_input(
-                "제목 수정",
-                value=title,
-                key=f"input_{sid}",
-                label_visibility="collapsed",
-                max_chars=30,
-            )
-            cs, cc = st.columns(2)
-            if cs.button("저장", key=f"save_{sid}", use_container_width=True):
-                _rename_history(sid, new_title)
-                st.session_state[f"editing_{sid}"] = False
-                st.session_state.history_list = _list_history()
-                st.rerun()
-            if cc.button("취소", key=f"cancel_{sid}", use_container_width=True):
-                st.session_state[f"editing_{sid}"] = False
-                st.rerun()
-        else:
-            # 제목 버튼 + 아이콘 버튼
-            c_title, c_icons = st.columns([5, 1])
-            with c_title:
-                btn_label = f"{'● ' if is_active else ''}{title}"
-                sub_label = f"{date_str} · {msg_count // 2}회 대화" if msg_count else date_str
-                # 제목 + 날짜 두 줄 버튼 (HTML 라벨)
-                if st.button(
-                    btn_label,
-                    key=f"hist_{sid}",
-                    use_container_width=True,
-                    help=sub_label,
-                ):
-                    _save_history()
-                    _load_history(sid)
-                    st.session_state.history_list = _list_history()
-                    st.rerun()
-                st.markdown(
-                    f'<p style="font-size:11px;color:#B0B8C1;margin:-8px 0 4px 2px;">{sub_label}</p>',
-                    unsafe_allow_html=True,
+            if is_editing:
+                new_title = st.text_input(
+                    "제목 수정",
+                    value=title,
+                    key=f"input_{sid}",
+                    label_visibility="collapsed",
+                    max_chars=30,
                 )
-
-            with c_icons:
-                st.markdown('<div class="session-icon">', unsafe_allow_html=True)
-                if st.button("✏", key=f"edit_{sid}", help="제목 편집", use_container_width=True):
-                    st.session_state[f"editing_{sid}"] = True
-                    st.rerun()
-                if st.button("✕", key=f"del_{sid}", help="삭제", use_container_width=True):
-                    _delete_history(sid)
-                    if sid == st.session_state.session_id:
-                        st.session_state.session_id = _new_session_id()
-                        st.session_state.messages = []
-                        st.session_state.suggested_questions = []
+                cs, cc = st.columns(2)
+                if cs.button("저장", key=f"save_{sid}", use_container_width=True):
+                    _rename_history(sid, new_title)
+                    st.session_state[f"editing_{sid}"] = False
                     st.session_state.history_list = _list_history()
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
-        if is_active:
-            st.markdown(
-                '<div style="height:2px;background:linear-gradient(90deg,#3182F6,transparent);'
-                'border-radius:1px;margin:0 0 2px;"></div>',
-                unsafe_allow_html=True,
-            )
+                if cc.button("취소", key=f"cancel_{sid}", use_container_width=True):
+                    st.session_state[f"editing_{sid}"] = False
+                    st.rerun()
+            else:
+                c_title, c_pop = st.columns([5, 1])
+                with c_title:
+                    sub_label = f"{date_str} · {msg_count // 2}회" if msg_count else date_str
+                    if st.button(
+                        f"{title}\n{sub_label}",
+                        key=f"hist_{sid}",
+                        use_container_width=True,
+                    ):
+                        _save_history()
+                        _load_history(sid)
+                        st.session_state.history_list = _list_history()
+                        st.rerun()
+                with c_pop:
+                    with st.popover("⋯", use_container_width=True):
+                        if st.button("✏️ 편집", key=f"edit_{sid}", use_container_width=True):
+                            st.session_state[f"editing_{sid}"] = True
+                            st.rerun()
+                        if st.button("🗑️ 삭제", key=f"del_{sid}", use_container_width=True):
+                            _delete_history(sid)
+                            if sid == st.session_state.session_id:
+                                st.session_state.session_id = _new_session_id()
+                                st.session_state.messages = []
+                                st.session_state.suggested_questions = []
+                            st.session_state.history_list = _list_history()
+                            st.rerun()
 
 
 # ── 메인 탭 ──────────────────────────────────────────────────────────────────
