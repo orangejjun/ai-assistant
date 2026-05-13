@@ -8,15 +8,23 @@ from backend.retrieval.retrieval_agent import RetrievalAgent
 
 _GPT_MODEL = "gpt-4o-mini"
 _IMAGE_MODEL = "gpt-image-1"
-_IMAGE_SIZE = "1024x1536"
 
 _PROMPT_SYSTEM = (
-    "You are a professional graphic designer creating flat 2D digital infographics. "
-    "Given a topic and reference document excerpts, write a DALL-E prompt for a digital infographic layout (NOT a photo of a poster). "
-    "The prompt must start with: "
-    "'Flat 2D digital infographic design, top-down view, no mockup, no shadows, no physical paper, pure digital artwork,' "
-    "Then describe: visual style, color scheme, title placement, key sections, icons or illustrations, and typography. "
-    "Write the prompt in English regardless of the input language."
+    "You are a senior art director specializing in Korean beauty (K-beauty) brand marketing. "
+    "Given a topic and reference document excerpts from a cosmetics company, "
+    "write an image generation prompt for a premium 2D digital poster or marketing graphic. "
+    "Design guidelines: "
+    "1) Style — flat 2D digital graphic, clean and elegant, NO 3D mockups, NO physical props. "
+    "2) Aesthetic — K-beauty premium: soft and sophisticated. "
+    "   Use color palettes such as: ivory/cream white, blush pink, champagne gold, sage green, "
+    "   lavender, or deep navy depending on the product theme. "
+    "3) Layout — clear visual hierarchy: bold headline area, key benefit callouts, "
+    "   decorative botanical or geometric accents, ample white space. "
+    "4) Typography — elegant sans-serif or thin serif typefaces implied in the design. "
+    "5) Forbidden — no shadows, no photo-realism, no physical paper, no room/environment, "
+    "   no binder clips, no mockup frames. Content must fill 100% of the canvas edge-to-edge. "
+    "Write the prompt in English. Start with: "
+    "'Flat 2D digital K-beauty brand poster, edge-to-edge design, no mockup, no shadows,'"
 )
 
 
@@ -32,12 +40,13 @@ class PosterAgent:
 
     def _execute(self, payload: dict) -> dict:
         topic: str = payload.get("topic", "")
+        size: str = payload.get("size", "1024x1536")
         if not topic:
             raise ValueError("payload에 'topic' 키가 필요합니다.")
 
         chunks = self._retrieve(topic)
         image_prompt = self._build_image_prompt(topic, chunks)
-        image_b64 = self._generate_image(image_prompt)
+        image_b64 = self._generate_image(image_prompt, size)
         sources = list(dict.fromkeys(c["source_file"] for c in chunks))
 
         return {
@@ -77,24 +86,24 @@ class PosterAgent:
         )
         return response.choices[0].message.content.strip()
 
-    def _generate_image(self, prompt: str) -> str:
+    def _generate_image(self, prompt: str, size: str = "1024x1536") -> str:
         enforced = (
-            "Flat digital graphic design artwork, infographic style. "
-            "Pure background filling 100% of the canvas. "
+            "Flat 2D digital K-beauty brand poster, edge-to-edge design, no mockup, no shadows. "
+            "Pure flat background filling 100% of the canvas edge-to-edge. "
             "NO shadows, NO photo-realistic rendering, NO 3D perspective, "
-            "NO paper texture, NO binder clips, NO wall, NO room, NO mockup, "
-            "NO frame, NO border, NO margins, NO surrounding environment. "
-            "This is a 2D vector-style flat digital graphic viewed perfectly straight-on. "
-            "The content must touch all four edges of the image. "
+            "NO paper texture, NO binder clips, NO wall, NO room, NO mockup frame, "
+            "NO border, NO margins, NO surrounding environment, NO physical objects. "
+            "Premium Korean beauty brand aesthetic: soft sophisticated color palette, "
+            "elegant typography layout, botanical or geometric decorative accents, ample white space. "
+            "Content must touch all four edges of the image. "
             + prompt
-            + " Completely flat digital graphic design. No depth, no shadow, no physical object. "
-            "Pure 2D infographic filling the entire canvas."
+            + " Completely flat 2D K-beauty digital graphic. Pure premium cosmetics brand design."
         )
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = client.images.generate(
             model=_IMAGE_MODEL,
             prompt=enforced,
-            size=_IMAGE_SIZE,
+            size=size,
             quality="high",
             n=1,
         )

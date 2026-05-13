@@ -25,6 +25,7 @@ from backend.memory.history_manager import (
     save_session,
     load_session,
     list_sessions,
+    rename_session,
     delete_session,
 )
 
@@ -59,6 +60,7 @@ class DeleteRequest(BaseModel):
 
 class PosterRequest(BaseModel):
     topic: str
+    size: str = "1024x1536"
 
 
 class PptRequest(BaseModel):
@@ -74,6 +76,10 @@ class PlanRequest(BaseModel):
 class SaveHistoryRequest(BaseModel):
     session_id: str
     messages: List[Dict]
+
+
+class RenameHistoryRequest(BaseModel):
+    title: str
 
 
 class EmailDraftRequest(BaseModel):
@@ -285,7 +291,7 @@ async def create_poster(request: PosterRequest) -> ApiResponse:
         if not request.topic.strip():
             raise ValueError("주제가 비어 있습니다.")
         agent = PosterAgent()
-        result = await asyncio.to_thread(agent.run, {"topic": request.topic})
+        result = await asyncio.to_thread(agent.run, {"topic": request.topic, "size": request.size})
         if not result["success"]:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result["error"])
         return ApiResponse(success=True, data=result["data"])
@@ -368,6 +374,20 @@ async def get_history(session_id: str) -> ApiResponse:
         if not data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
         return ApiResponse(success=True, data=data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.patch("/history/{session_id}", response_model=ApiResponse, status_code=status.HTTP_200_OK)
+async def rename_history(session_id: str, request: RenameHistoryRequest) -> ApiResponse:
+    """세션 제목을 수정한다."""
+    try:
+        ok = await asyncio.to_thread(rename_session, session_id, request.title)
+        if not ok:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다.")
+        return ApiResponse(success=True, data={"session_id": session_id, "title": request.title})
     except HTTPException:
         raise
     except Exception as e:

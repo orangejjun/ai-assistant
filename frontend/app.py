@@ -68,6 +68,10 @@ hr { border-color: #E5E8EB !important; }
 ::-webkit-scrollbar-thumb:hover { background: #B0B8C1; }
 [data-testid="stMetric"] { background: #FFFFFF !important; border: 1px solid #E5E8EB !important; border-radius: 12px !important; padding: 16px !important; }
 [data-testid="stDownloadButton"] > button { background: #F2F4F6 !important; border: 1px solid #E5E8EB !important; color: #191F28 !important; border-radius: 10px !important; }
+/* 사이드바 세션 버튼 - 카드 스타일 */
+[data-testid="stSidebar"] [data-testid="stButton"] > button { text-align: left !important; justify-content: flex-start !important; }
+[data-testid="stSidebar"] .session-icon [data-testid="stButton"] > button { background: transparent !important; border: none !important; padding: 4px 6px !important; color: #B0B8C1 !important; font-size: 11px !important; font-weight: 400 !important; min-height: 28px !important; }
+[data-testid="stSidebar"] .session-icon [data-testid="stButton"] > button:hover { background: #F2F4F6 !important; color: #6B7684 !important; }
 </style>""", unsafe_allow_html=True)
 
 # ── 세션 상태 초기화 ─────────────────────────────────────────────────────────
@@ -164,6 +168,13 @@ def _load_history(session_id: str) -> None:
         pass
 
 
+def _rename_history(session_id: str, title: str) -> None:
+    try:
+        requests.patch(f"{API_BASE}/history/{session_id}", json={"title": title}, timeout=10)
+    except Exception:
+        pass
+
+
 def _delete_history(session_id: str) -> None:
     try:
         requests.delete(f"{API_BASE}/history/{session_id}", timeout=10)
@@ -191,10 +202,10 @@ def _delete_file(source_file: str) -> dict:
     return res.json()
 
 
-def _create_poster(topic: str) -> dict:
+def _create_poster(topic: str, size: str = "1024x1536") -> dict:
     res = requests.post(
         f"{API_BASE}/poster",
-        json={"topic": topic},
+        json={"topic": topic, "size": size},
         timeout=180,
     )
     res.raise_for_status()
@@ -445,58 +456,102 @@ with st.sidebar:
         _file_manager_dialog()
 
     st.divider()
-    st.subheader("💬 대화 이력")
 
-    col_new, col_refresh = st.columns([3, 1])
-    with col_new:
-        if st.button("+ 새 대화", use_container_width=True, type="primary"):
-            _save_history()
-            st.session_state.session_id = _new_session_id()
-            st.session_state.messages = []
-            st.session_state.suggested_questions = []
-            st.session_state.history_list = _list_history()
-            st.rerun()
-    with col_refresh:
-        if st.button("↺", use_container_width=True, help="이력 새로고침"):
-            st.session_state.history_list = _list_history()
-            st.rerun()
+    # ── 대화 이력 헤더 ──
+    col_title, col_ref = st.columns([4, 1])
+    col_title.markdown("**대화 이력**")
+    if col_ref.button("↺", help="목록 새로고침", use_container_width=True):
+        st.session_state.history_list = _list_history()
+        st.rerun()
+
+    if st.button("＋ 새 대화 시작", use_container_width=True, type="primary"):
+        _save_history()
+        st.session_state.session_id = _new_session_id()
+        st.session_state.messages = []
+        st.session_state.suggested_questions = []
+        st.session_state.history_list = _list_history()
+        st.rerun()
 
     if not st.session_state.history_list:
         st.session_state.history_list = _list_history()
 
-    for s in st.session_state.history_list[:10]:
+    # ── 세션 카드 목록 ──
+    for s in st.session_state.history_list[:15]:
         sid = s["session_id"]
+        title = s.get("title") or "새 대화"
         date_str = s["updated_at"][:10] if s.get("updated_at") else ""
-        preview = s.get("preview", "")[:22] or "빈 대화"
-        label = f"{date_str}  {preview}"
+        msg_count = s.get("message_count", 0)
         is_active = sid == st.session_state.session_id
-        btn_col, del_col = st.columns([5, 1])
-        with btn_col:
-            if st.button(
-                label,
-                key=f"hist_{sid}",
-                use_container_width=True,
-                type="primary" if is_active else "secondary",
-                help=f"세션 ID: {sid}",
-            ):
-                _save_history()
-                _load_history(sid)
-                st.rerun()
-        with del_col:
-            if st.button("✕", key=f"del_{sid}", help="이 이력 삭제"):
-                _delete_history(sid)
-                if sid == st.session_state.session_id:
-                    st.session_state.session_id = _new_session_id()
-                    st.session_state.messages = []
+        is_editing = st.session_state.get(f"editing_{sid}", False)
+
+        # 활성 세션 시각적 구분선
+        if is_active:
+            st.markdown(
+                '<div style="height:2px;background:linear-gradient(90deg,#3182F6,transparent);'
+                'border-radius:1px;margin:2px 0 0;"></div>',
+                unsafe_allow_html=True,
+            )
+
+        if is_editing:
+            new_title = st.text_input(
+                "제목 수정",
+                value=title,
+                key=f"input_{sid}",
+                label_visibility="collapsed",
+                max_chars=30,
+            )
+            cs, cc = st.columns(2)
+            if cs.button("저장", key=f"save_{sid}", use_container_width=True):
+                _rename_history(sid, new_title)
+                st.session_state[f"editing_{sid}"] = False
                 st.session_state.history_list = _list_history()
                 st.rerun()
+            if cc.button("취소", key=f"cancel_{sid}", use_container_width=True):
+                st.session_state[f"editing_{sid}"] = False
+                st.rerun()
+        else:
+            # 제목 버튼 + 아이콘 버튼
+            c_title, c_icons = st.columns([5, 1])
+            with c_title:
+                btn_label = f"{'● ' if is_active else ''}{title}"
+                sub_label = f"{date_str} · {msg_count // 2}회 대화" if msg_count else date_str
+                # 제목 + 날짜 두 줄 버튼 (HTML 라벨)
+                if st.button(
+                    btn_label,
+                    key=f"hist_{sid}",
+                    use_container_width=True,
+                    help=sub_label,
+                ):
+                    _save_history()
+                    _load_history(sid)
+                    st.session_state.history_list = _list_history()
+                    st.rerun()
+                st.markdown(
+                    f'<p style="font-size:11px;color:#B0B8C1;margin:-8px 0 4px 2px;">{sub_label}</p>',
+                    unsafe_allow_html=True,
+                )
 
-    st.divider()
+            with c_icons:
+                st.markdown('<div class="session-icon">', unsafe_allow_html=True)
+                if st.button("✏", key=f"edit_{sid}", help="제목 편집", use_container_width=True):
+                    st.session_state[f"editing_{sid}"] = True
+                    st.rerun()
+                if st.button("✕", key=f"del_{sid}", help="삭제", use_container_width=True):
+                    _delete_history(sid)
+                    if sid == st.session_state.session_id:
+                        st.session_state.session_id = _new_session_id()
+                        st.session_state.messages = []
+                        st.session_state.suggested_questions = []
+                    st.session_state.history_list = _list_history()
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.button("🗑️ 현재 대화 초기화", use_container_width=True):
-        st.session_state.messages = []
-        st.session_state.suggested_questions = []
-        st.rerun()
+        if is_active:
+            st.markdown(
+                '<div style="height:2px;background:linear-gradient(90deg,#3182F6,transparent);'
+                'border-radius:1px;margin:0 0 2px;"></div>',
+                unsafe_allow_html=True,
+            )
 
 
 # ── 메인 탭 ──────────────────────────────────────────────────────────────────
@@ -616,15 +671,24 @@ with tab_chat:
 
 # ── 탭 2: 포스터 생성 ─────────────────────────────────────────────────────────
 
-with tab_poster:
-    st.caption("사내 문서를 기반으로 주제를 요약하는 포스터를 생성합니다.")
+_POSTER_SIZES = {
+    "세로형 2:3  — 포스터 · 스토리 (1024×1536)": "1024x1536",
+    "정방형 1:1  — SNS · 인스타그램 (1024×1024)": "1024x1024",
+    "가로형 3:2  — 웹 배너 · 프레젠테이션 (1536×1024)": "1536x1024",
+}
 
-    topic = st.text_input("포스터 주제", placeholder="예: REM 수면 연구 요약, 2026 학회 발표 내용")
+with tab_poster:
+    st.caption("화장품 브랜드 감성의 K-beauty 마케팅 포스터를 생성합니다.")
+
+    topic = st.text_input("포스터 주제", placeholder="예: 수분 크림 신제품 출시, 여름 선케어 라인업, 콜라겐 앰플 효능")
+
+    selected_label = st.selectbox("이미지 크기", list(_POSTER_SIZES.keys()))
+    selected_size = _POSTER_SIZES[selected_label]
 
     if st.button("🎨 포스터 생성", type="primary", use_container_width=True, disabled=not topic.strip()):
         with st.spinner("포스터를 생성하는 중입니다... (약 30~60초 소요)"):
             try:
-                result = _create_poster(topic)
+                result = _create_poster(topic, size=selected_size)
                 if result.get("success"):
                     d = result["data"]
                     import base64
@@ -633,7 +697,7 @@ with tab_poster:
                     st.download_button(
                         "⬇️ 포스터 다운로드",
                         data=img_bytes,
-                        file_name=f"poster_{topic[:20].replace(' ', '_')}.png",
+                        file_name=f"poster_{topic[:20].replace(' ', '_')}_{selected_size}.png",
                         mime="image/png",
                         use_container_width=True,
                     )
